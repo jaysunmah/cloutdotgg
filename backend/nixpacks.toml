@@ -1,9 +1,8 @@
-[phases.setup]
-nixPkgs = ["go_1_22"]
+# Go build configuration
+providers = ["go"]
 
 [phases.build]
 cmds = ["go build -o server ."]
 
 [start]
 cmd = "./server"
-
