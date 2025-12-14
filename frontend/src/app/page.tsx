@@ -73,6 +73,9 @@ export default function Home() {
           <p className="text-[var(--text-secondary)] text-lg">
             Go + PostgreSQL + Next.js
           </p>
+          <p className="text-[var(--text-secondary)] text-xs mt-2 opacity-60">
+            Build: Dec 14, 2024 - CI Pipeline Test ✨
+          </p>
         </header>
 
         {/* Create User Form */}
