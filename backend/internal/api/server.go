@@ -29,7 +29,7 @@ func (s *Server) Routes() *chi.Mux {
 
 	// CORS configuration for Next.js frontend
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "https://*.vercel.app", "https://*.railway.app"},
+		AllowedOrigins:   []string{"http://localhost:3000", "https://*.vercel.app", "https://*.railway.app", "https://*.up.railway.app"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID"},
 		ExposedHeaders:   []string{"Link"},
