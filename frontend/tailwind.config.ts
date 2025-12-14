@@ -9,14 +9,17 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-geist-sans)"],
-        mono: ["var(--font-geist-mono)"],
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
       },
       colors: {
         accent: {
-          DEFAULT: "#f97316",
-          hover: "#ea580c",
+          DEFAULT: "#8b5cf6",
+          hover: "#7c3aed",
         },
+      },
+      borderWidth: {
+        '3': '3px',
       },
     },
   },
@@ -24,4 +27,3 @@ const config: Config = {
 };
 
 export default config;
-

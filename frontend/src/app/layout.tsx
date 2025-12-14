@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
-import { Outfit, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import Navigation from "@/components/Navigation";
 
-const outfit = Outfit({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-geist-mono",
+  variable: "--font-mono",
   subsets: ["latin"],
   weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
-  title: "CloutGG",
-  description: "Full-stack webapp with Go, PostgreSQL, and Next.js",
+  title: "AI Rankings | Best AI Companies to Work For",
+  description: "Discover and rank the best AI companies to work for. Vote head-to-head, explore company profiles, and see real ratings from the community.",
+  keywords: ["AI", "companies", "rankings", "tech jobs", "OpenAI", "Anthropic", "Google DeepMind"],
 };
 
 export default function RootLayout({
@@ -27,11 +29,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${outfit.variable} ${jetbrainsMono.variable} font-sans antialiased`}
+        className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
+        <Navigation />
         {children}
       </body>
     </html>
   );
 }
-
