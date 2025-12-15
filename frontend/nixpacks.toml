@@ -1,11 +1,12 @@
 [phases.setup]
-aptPkgs = ["postgresql-client", "curl"]
-nixPkgs = ["go"]
+aptPkgs = ["curl"]
 
 [phases.install]
 cmds = [
     # Install buf CLI for proto generation
-    "curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf"
+    "curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf",
+    # Install npm dependencies
+    "npm ci"
 ]
 
 [phases.build]
@@ -14,13 +15,13 @@ cmds = [
     # Copy proto files from parent directory (available in Railway monorepo builds)
     "cp -r ../proto .",
     # Generate proto files using local buf.gen.yaml
-    "mkdir -p internal/gen",
+    "mkdir -p src/lib/gen",
     "buf generate proto",
     # Clean up copied proto directory
     "rm -rf proto",
-    # Build the Go binary
-    "go build -o server ."
+    # Build Next.js
+    "npm run build"
 ]
 
 [start]
-cmd = "sh -c 'for f in migrations/*.sql; do psql $DATABASE_URL -f $f; done && ./server'"
+cmd = "npm run start"
