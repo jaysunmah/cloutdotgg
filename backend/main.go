@@ -77,6 +77,11 @@ func main() {
 			if origin == "http://localhost:3000" {
 				return true
 			}
+			// Allow custom domain
+			if origin == "https://cloutdotgg.com" ||
+				origin == "https://www.cloutdotgg.com" {
+				return true
+			}
 			// Allow Railway and Vercel deployments
 			if strings.HasSuffix(origin, ".railway.app") ||
 				strings.HasSuffix(origin, ".up.railway.app") ||
