@@ -1,6 +1,8 @@
 module github.com/cloutdotgg/backend
 
-go 1.22
+go 1.23
+
+toolchain go1.24.11
 
 require (
 	github.com/go-chi/chi/v5 v5.1.0
@@ -16,4 +18,5 @@ require (
 	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )

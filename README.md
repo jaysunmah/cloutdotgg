@@ -1,23 +1,31 @@
 # CloutGG
 
-Full-stack webapp with **Go** backend, **PostgreSQL** database, and **Next.js** frontend.
+Full-stack webapp with **Go** backend, **PostgreSQL** database, and **Next.js** frontend. Supports **Protocol Buffers** for efficient data serialization.
 
 ## Project Structure
 
 ```
 .
+├── proto/                 # Protocol Buffer definitions
+│   └── api.proto          # API message definitions
 ├── backend/               # Go API server
 │   ├── internal/
 │   │   ├── api/          # HTTP handlers and routing
-│   │   └── db/           # Database connection
+│   │   ├── db/           # Database connection
+│   │   └── pb/           # Generated protobuf Go code
 │   ├── migrations/       # SQL migrations
 │   ├── go.mod
 │   └── main.go
 ├── frontend/             # Next.js app
-│   ├── src/app/         # App router pages
+│   ├── src/
+│   │   ├── app/         # App router pages
+│   │   └── lib/
+│   │       ├── api.ts    # API client (supports JSON & protobuf)
+│   │       └── proto/    # Generated protobuf TypeScript code
 │   ├── package.json
 │   └── ...
 ├── docker-compose.yml    # PostgreSQL container
+├── Makefile              # Build automation
 └── README.md
 ```
 
@@ -118,6 +126,66 @@ npm start
 - **Backend:** Go 1.22, Chi router, pgx (PostgreSQL driver)
 - **Database:** PostgreSQL 16
 - **Frontend:** Next.js 15, React 18, Tailwind CSS, TypeScript
+- **Serialization:** Protocol Buffers (with JSON fallback)
+
+## Protocol Buffers
+
+This project uses Protocol Buffers for efficient data serialization between the frontend and backend. The API supports both JSON and protobuf formats based on the `Content-Type` and `Accept` headers.
+
+### Prerequisites for Protobuf
+
+- [protoc](https://grpc.io/docs/protoc-installation/) (Protocol Buffer Compiler)
+- Go protobuf plugin: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
+- TypeScript protobuf plugin: `npm install ts-proto @bufbuild/protobuf` (in frontend)
+
+### Generate Protobuf Code
+
+Regenerate protobuf code after modifying `proto/api.proto`:
+
+```bash
+# Generate both Go and TypeScript code
+make proto
+
+# Generate only Go code
+make proto-go
+
+# Generate only TypeScript code
+make proto-ts
+
+# Or from the frontend directory
+cd frontend && npm run proto
+```
+
+### Using Protobuf
+
+**Backend (Go):**
+The API automatically negotiates the response format based on the `Accept` header:
+- `Accept: application/x-protobuf` → Returns protobuf-encoded response
+- `Accept: application/json` (or no header) → Returns JSON response
+
+For requests with a body, the `Content-Type` header determines the expected format:
+- `Content-Type: application/x-protobuf` → Expects protobuf-encoded body
+- `Content-Type: application/json` → Expects JSON body
+
+**Frontend (TypeScript):**
+Set the environment variable to enable protobuf:
+```bash
+NEXT_PUBLIC_USE_PROTOBUF=true
+```
+
+The API client in `src/lib/api.ts` will automatically use protobuf when enabled, with JSON as the fallback.
+
+### Protobuf Message Definitions
+
+All message types are defined in `proto/api.proto`. Key messages include:
+
+- `Company` - AI company with rankings and metadata
+- `VoteRequest` / `VoteResponse` - Voting requests and responses
+- `MatchupPair` - Two companies for head-to-head voting
+- `LeaderboardResponse` - Paginated leaderboard data
+- `StatsResponse` - Platform statistics
+- `CompanyRating` / `AggregatedRating` - Company ratings
+- `CompanyComment` / `CommentList` - Company comments
 
 ## Deploy to Railway (Recommended)
 

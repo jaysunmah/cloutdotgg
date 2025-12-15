@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloutdotgg/backend/internal/pb"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -133,17 +134,21 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	if err := s.db.Ping(ctx); err != nil {
-		respondJSON(w, http.StatusServiceUnavailable, map[string]string{
+		jsonData := map[string]string{
 			"status":   "unhealthy",
 			"database": "disconnected",
-		})
+		}
+		protoMsg := HealthResponseToProto("unhealthy", "disconnected")
+		respond(w, r, http.StatusServiceUnavailable, jsonData, protoMsg)
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{
+	jsonData := map[string]string{
 		"status":   "healthy",
 		"database": "connected",
-	})
+	}
+	protoMsg := HealthResponseToProto("healthy", "connected")
+	respond(w, r, http.StatusOK, jsonData, protoMsg)
 }
 
 // Get platform stats
@@ -155,7 +160,7 @@ func (s *Server) handleGetStats(w http.ResponseWriter, r *http.Request) {
 	// Get total companies
 	err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM companies").Scan(&stats.TotalCompanies)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch stats")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to fetch stats")
 		return
 	}
 
@@ -193,7 +198,7 @@ func (s *Server) handleGetStats(w http.ResponseWriter, r *http.Request) {
 		stats.Categories = []string{}
 	}
 
-	respondJSON(w, http.StatusOK, stats)
+	respond(w, r, http.StatusOK, stats, StatsResponseToProto(&stats))
 }
 
 // List all companies (with optional filtering)
@@ -228,7 +233,7 @@ func (s *Server) handleListCompanies(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.db.Query(ctx, query, args...)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch companies")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to fetch companies")
 		return
 	}
 	defer rows.Close()
@@ -241,7 +246,7 @@ func (s *Server) handleListCompanies(w http.ResponseWriter, r *http.Request) {
 			&c.Category, &c.Tags, &c.FoundedYear, &c.HQLocation, &c.EmployeeRange,
 			&c.FundingStage, &c.EloRating, &c.TotalVotes, &c.Wins, &c.Losses,
 			&c.CreatedAt, &c.UpdatedAt); err != nil {
-			respondError(w, http.StatusInternalServerError, "Failed to scan company")
+			respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to scan company")
 			return
 		}
 		c.Rank = rank
@@ -256,7 +261,7 @@ func (s *Server) handleListCompanies(w http.ResponseWriter, r *http.Request) {
 		companies = []Company{}
 	}
 
-	respondJSON(w, http.StatusOK, companies)
+	respond(w, r, http.StatusOK, companies, CompaniesToProto(companies))
 }
 
 // Get company by slug
@@ -277,7 +282,7 @@ func (s *Server) handleGetCompany(w http.ResponseWriter, r *http.Request) {
 		&c.CreatedAt, &c.UpdatedAt)
 
 	if err != nil {
-		respondError(w, http.StatusNotFound, "Company not found")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Company not found")
 		return
 	}
 
@@ -293,7 +298,7 @@ func (s *Server) handleGetCompany(w http.ResponseWriter, r *http.Request) {
 		c.Tags = []string{}
 	}
 
-	respondJSON(w, http.StatusOK, c)
+	respond(w, r, http.StatusOK, c, CompanyToProto(&c))
 }
 
 // Get a random matchup pair for voting
@@ -318,7 +323,7 @@ func (s *Server) handleGetMatchup(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.db.Query(ctx, query, args...)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch matchup")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to fetch matchup")
 		return
 	}
 	defer rows.Close()
@@ -330,7 +335,7 @@ func (s *Server) handleGetMatchup(w http.ResponseWriter, r *http.Request) {
 			&c.Category, &c.Tags, &c.FoundedYear, &c.HQLocation, &c.EmployeeRange,
 			&c.FundingStage, &c.EloRating, &c.TotalVotes, &c.Wins, &c.Losses,
 			&c.CreatedAt, &c.UpdatedAt); err != nil {
-			respondError(w, http.StatusInternalServerError, "Failed to scan company")
+			respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to scan company")
 			return
 		}
 		if c.Tags == nil {
@@ -340,7 +345,7 @@ func (s *Server) handleGetMatchup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(companies) < 2 {
-		respondError(w, http.StatusNotFound, "Not enough companies for matchup")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Not enough companies for matchup")
 		return
 	}
 
@@ -349,22 +354,34 @@ func (s *Server) handleGetMatchup(w http.ResponseWriter, r *http.Request) {
 		companies[0], companies[1] = companies[1], companies[0]
 	}
 
-	respondJSON(w, http.StatusOK, MatchupPair{
+	matchup := MatchupPair{
 		Company1: companies[0],
 		Company2: companies[1],
-	})
+	}
+
+	respond(w, r, http.StatusOK, matchup, MatchupPairToProto(&matchup))
 }
 
 // Submit a vote
 func (s *Server) handleVote(w http.ResponseWriter, r *http.Request) {
 	var req VoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid request body")
-		return
+	var pbReq pb.VoteRequest
+
+	if isProtobufRequest(r) {
+		if err := decodeProtoRequest(r, &pbReq); err != nil {
+			respondErrorWithProto(w, r, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+		req = *VoteRequestFromProto(&pbReq)
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondErrorWithProto(w, r, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 	}
 
 	if req.WinnerID == req.LoserID {
-		respondError(w, http.StatusBadRequest, "Winner and loser must be different")
+		respondErrorWithProto(w, r, http.StatusBadRequest, "Winner and loser must be different")
 		return
 	}
 
@@ -374,12 +391,12 @@ func (s *Server) handleVote(w http.ResponseWriter, r *http.Request) {
 	var winnerElo, loserElo int
 	err := s.db.QueryRow(ctx, "SELECT elo_rating FROM companies WHERE id = $1", req.WinnerID).Scan(&winnerElo)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "Winner company not found")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Winner company not found")
 		return
 	}
 	err = s.db.QueryRow(ctx, "SELECT elo_rating FROM companies WHERE id = $1", req.LoserID).Scan(&loserElo)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "Loser company not found")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Loser company not found")
 		return
 	}
 
@@ -401,7 +418,7 @@ func (s *Server) handleVote(w http.ResponseWriter, r *http.Request) {
 		WHERE id = $2
 	`, newWinnerElo, req.WinnerID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to update winner")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to update winner")
 		return
 	}
 
@@ -412,7 +429,7 @@ func (s *Server) handleVote(w http.ResponseWriter, r *http.Request) {
 		WHERE id = $2
 	`, newLoserElo, req.LoserID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to update loser")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to update loser")
 		return
 	}
 
@@ -460,12 +477,14 @@ func (s *Server) handleVote(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	respondJSON(w, http.StatusOK, VoteResponse{
+	voteResp := VoteResponse{
 		Winner:        winner,
 		Loser:         loser,
 		WinnerEloDiff: winnerEloDiff,
 		LoserEloDiff:  loserEloDiff,
-	})
+	}
+
+	respond(w, r, http.StatusOK, voteResp, VoteResponseToProto(&voteResp))
 }
 
 // Get leaderboard
@@ -521,7 +540,7 @@ func (s *Server) handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.db.Query(ctx, query, args...)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch leaderboard")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to fetch leaderboard")
 		return
 	}
 	defer rows.Close()
@@ -534,7 +553,7 @@ func (s *Server) handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 			&c.Category, &c.Tags, &c.FoundedYear, &c.HQLocation, &c.EmployeeRange,
 			&c.FundingStage, &c.EloRating, &c.TotalVotes, &c.Wins, &c.Losses,
 			&c.CreatedAt, &c.UpdatedAt); err != nil {
-			respondError(w, http.StatusInternalServerError, "Failed to scan company")
+			respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to scan company")
 			return
 		}
 		c.Rank = rank
@@ -549,38 +568,50 @@ func (s *Server) handleGetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		companies = []Company{}
 	}
 
-	respondJSON(w, http.StatusOK, LeaderboardResponse{
+	leaderboardResp := LeaderboardResponse{
 		Companies:  companies,
 		TotalCount: totalCount,
 		Page:       page,
 		PageSize:   pageSize,
-	})
+	}
+
+	respond(w, r, http.StatusOK, leaderboardResp, LeaderboardResponseToProto(&leaderboardResp))
 }
 
 // Submit a rating for a company
 func (s *Server) handleSubmitRating(w http.ResponseWriter, r *http.Request) {
 	var req RatingRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid request body")
-		return
+	var pbReq pb.RatingRequest
+
+	if isProtobufRequest(r) {
+		if err := decodeProtoRequest(r, &pbReq); err != nil {
+			respondErrorWithProto(w, r, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+		req = *RatingRequestFromProto(&pbReq)
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondErrorWithProto(w, r, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 	}
 
 	if req.Score < 1 || req.Score > 5 {
-		respondError(w, http.StatusBadRequest, "Score must be between 1 and 5")
+		respondErrorWithProto(w, r, http.StatusBadRequest, "Score must be between 1 and 5")
 		return
 	}
 
 	validCriteria := map[string]bool{
-		"compensation":     true,
-		"culture":          true,
+		"compensation":      true,
+		"culture":           true,
 		"work_life_balance": true,
-		"growth":           true,
-		"tech_stack":       true,
-		"leadership":       true,
-		"interview":        true,
+		"growth":            true,
+		"tech_stack":        true,
+		"leadership":        true,
+		"interview":         true,
 	}
 	if !validCriteria[req.Criterion] {
-		respondError(w, http.StatusBadRequest, "Invalid criterion")
+		respondErrorWithProto(w, r, http.StatusBadRequest, "Invalid criterion")
 		return
 	}
 
@@ -590,7 +621,7 @@ func (s *Server) handleSubmitRating(w http.ResponseWriter, r *http.Request) {
 	var exists bool
 	err := s.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM companies WHERE id = $1)", req.CompanyID).Scan(&exists)
 	if err != nil || !exists {
-		respondError(w, http.StatusNotFound, "Company not found")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Company not found")
 		return
 	}
 
@@ -605,11 +636,11 @@ func (s *Server) handleSubmitRating(w http.ResponseWriter, r *http.Request) {
 		&rating.ID, &rating.CompanyID, &rating.Criterion, &rating.Score, &rating.SessionID, &rating.CreatedAt)
 
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to submit rating")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to submit rating")
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, rating)
+	respond(w, r, http.StatusCreated, rating, CompanyRatingToProto(&rating))
 }
 
 // Get ratings for a company
@@ -621,7 +652,7 @@ func (s *Server) handleGetCompanyRatings(w http.ResponseWriter, r *http.Request)
 	var companyID int
 	err := s.db.QueryRow(ctx, "SELECT id FROM companies WHERE slug = $1", slug).Scan(&companyID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "Company not found")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Company not found")
 		return
 	}
 
@@ -632,7 +663,7 @@ func (s *Server) handleGetCompanyRatings(w http.ResponseWriter, r *http.Request)
 		GROUP BY criterion
 	`, companyID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch ratings")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to fetch ratings")
 		return
 	}
 	defer rows.Close()
@@ -650,24 +681,34 @@ func (s *Server) handleGetCompanyRatings(w http.ResponseWriter, r *http.Request)
 		ratings = []AggregatedRating{}
 	}
 
-	respondJSON(w, http.StatusOK, ratings)
+	respond(w, r, http.StatusOK, ratings, AggregatedRatingsToProto(ratings))
 }
 
 // Submit a comment for a company
 func (s *Server) handleSubmitComment(w http.ResponseWriter, r *http.Request) {
 	var req CommentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid request body")
-		return
+	var pbReq pb.CommentRequest
+
+	if isProtobufRequest(r) {
+		if err := decodeProtoRequest(r, &pbReq); err != nil {
+			respondErrorWithProto(w, r, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+		req = *CommentRequestFromProto(&pbReq)
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondErrorWithProto(w, r, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 	}
 
 	if strings.TrimSpace(req.Content) == "" {
-		respondError(w, http.StatusBadRequest, "Content is required")
+		respondErrorWithProto(w, r, http.StatusBadRequest, "Content is required")
 		return
 	}
 
 	if len(req.Content) > 2000 {
-		respondError(w, http.StatusBadRequest, "Content too long (max 2000 characters)")
+		respondErrorWithProto(w, r, http.StatusBadRequest, "Content too long (max 2000 characters)")
 		return
 	}
 
@@ -677,7 +718,7 @@ func (s *Server) handleSubmitComment(w http.ResponseWriter, r *http.Request) {
 	var exists bool
 	err := s.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM companies WHERE id = $1)", req.CompanyID).Scan(&exists)
 	if err != nil || !exists {
-		respondError(w, http.StatusNotFound, "Company not found")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Company not found")
 		return
 	}
 
@@ -693,11 +734,11 @@ func (s *Server) handleSubmitComment(w http.ResponseWriter, r *http.Request) {
 		&comment.SessionID, &comment.Upvotes, &comment.CreatedAt)
 
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to submit comment")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to submit comment")
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, comment)
+	respond(w, r, http.StatusCreated, comment, CompanyCommentToProto(&comment))
 }
 
 // Get comments for a company
@@ -709,7 +750,7 @@ func (s *Server) handleGetCompanyComments(w http.ResponseWriter, r *http.Request
 	var companyID int
 	err := s.db.QueryRow(ctx, "SELECT id FROM companies WHERE slug = $1", slug).Scan(&companyID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "Company not found")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Company not found")
 		return
 	}
 
@@ -721,7 +762,7 @@ func (s *Server) handleGetCompanyComments(w http.ResponseWriter, r *http.Request
 		LIMIT 100
 	`, companyID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch comments")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to fetch comments")
 		return
 	}
 	defer rows.Close()
@@ -740,7 +781,7 @@ func (s *Server) handleGetCompanyComments(w http.ResponseWriter, r *http.Request
 		comments = []CompanyComment{}
 	}
 
-	respondJSON(w, http.StatusOK, comments)
+	respond(w, r, http.StatusOK, comments, CompanyCommentsToProto(comments))
 }
 
 // Upvote a comment
@@ -748,7 +789,7 @@ func (s *Server) handleUpvoteComment(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid comment ID")
+		respondErrorWithProto(w, r, http.StatusBadRequest, "Invalid comment ID")
 		return
 	}
 
@@ -764,11 +805,11 @@ func (s *Server) handleUpvoteComment(w http.ResponseWriter, r *http.Request) {
 		&comment.SessionID, &comment.Upvotes, &comment.CreatedAt)
 
 	if err != nil {
-		respondError(w, http.StatusNotFound, "Comment not found")
+		respondErrorWithProto(w, r, http.StatusNotFound, "Comment not found")
 		return
 	}
 
-	respondJSON(w, http.StatusOK, comment)
+	respond(w, r, http.StatusOK, comment, CompanyCommentToProto(&comment))
 }
 
 // Get categories
@@ -782,7 +823,7 @@ func (s *Server) handleGetCategories(w http.ResponseWriter, r *http.Request) {
 		ORDER BY count DESC
 	`)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to fetch categories")
+		respondErrorWithProto(w, r, http.StatusInternalServerError, "Failed to fetch categories")
 		return
 	}
 	defer rows.Close()
@@ -793,19 +834,24 @@ func (s *Server) handleGetCategories(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var categories []CategoryCount
+	var pbCategories []*pb.CategoryCount
 	for rows.Next() {
 		var c CategoryCount
 		if err := rows.Scan(&c.Category, &c.Count); err != nil {
 			continue
 		}
 		categories = append(categories, c)
+		pbCategories = append(pbCategories, CategoryCountToProto(c.Category, c.Count))
 	}
 
 	if categories == nil {
 		categories = []CategoryCount{}
 	}
+	if pbCategories == nil {
+		pbCategories = []*pb.CategoryCount{}
+	}
 
-	respondJSON(w, http.StatusOK, categories)
+	respond(w, r, http.StatusOK, categories, &pb.CategoryCountList{Categories: pbCategories})
 }
 
 func respondJSON(w http.ResponseWriter, status int, data any) {

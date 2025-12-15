@@ -38,3 +38,8 @@ core
 screenshots/
 demo_video.js
 test_voting*.js
+
+# Generated protobuf files (regenerate with `make proto`)
+# Uncomment if you want to exclude generated files from git
+# backend/internal/pb/
+# frontend/src/lib/proto/
