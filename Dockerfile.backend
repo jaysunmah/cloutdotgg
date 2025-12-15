@@ -7,18 +7,19 @@ RUN apk add --no-cache curl postgresql-client && \
     curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && \
     chmod +x /usr/local/bin/buf
 
-# Copy proto files and buf config
-COPY proto/ ./proto/
-COPY backend/buf.gen.yaml ./backend/
-
-# Generate proto code
-RUN buf dep update proto && \
-    mkdir -p backend/internal/gen && \
-    buf generate proto --template backend/buf.gen.yaml
-
-# Copy backend source and build
+# Copy backend source first (needed for go.mod)
 COPY backend/ ./backend/
+
+# Copy proto files
+COPY proto/ ./proto/
+
+# Generate proto code from backend directory so paths are correct
 WORKDIR /app/backend
+RUN buf dep update ../proto && \
+    mkdir -p internal/gen && \
+    buf generate ../proto
+
+# Build
 RUN go mod download && \
     CGO_ENABLED=0 GOOS=linux go build -o server .
 
