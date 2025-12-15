@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -71,11 +72,18 @@ func main() {
 
 	// CORS configuration
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins: []string{
-			"http://localhost:3000",
-			"https://*.vercel.app",
-			"https://*.railway.app",
-			"https://*.up.railway.app",
+		AllowOriginFunc: func(origin string) bool {
+			// Allow localhost for development
+			if origin == "http://localhost:3000" {
+				return true
+			}
+			// Allow Railway and Vercel deployments
+			if strings.HasSuffix(origin, ".railway.app") ||
+				strings.HasSuffix(origin, ".up.railway.app") ||
+				strings.HasSuffix(origin, ".vercel.app") {
+				return true
+			}
+			return false
 		},
 		AllowedMethods: []string{
 			http.MethodGet,
