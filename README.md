@@ -10,12 +10,13 @@ Full-stack webapp with **Go** backend, **PostgreSQL** database, and **Next.js** 
 │   └── api.proto          # RPC service and message definitions
 ├── backend/               # Go API server
 │   ├── internal/
-│   │   ├── gen/          # Generated Connect/protobuf code
+│   │   ├── gen/          # Generated Connect/protobuf code (not committed)
 │   │   ├── db/
 │   │   │   └── sqlc/     # Generated sqlc database code
 │   │   └── service/      # RPC service implementations
 │   ├── db/
 │   │   └── migrations/   # SQL migrations (golang-migrate format)
+│   ├── buf.gen.yaml      # Backend-specific buf generation config
 │   ├── go.mod
 │   └── main.go
 ├── frontend/             # Next.js app
@@ -23,15 +24,18 @@ Full-stack webapp with **Go** backend, **PostgreSQL** database, and **Next.js** 
 │   │   ├── app/         # App router pages
 │   │   └── lib/
 │   │       ├── api.ts    # API client using Connect
-│   │       └── gen/      # Generated Connect client code
+│   │       └── gen/      # Generated Connect client code (not committed)
+│   ├── buf.gen.yaml      # Frontend-specific buf generation config
 │   ├── package.json
 │   └── ...
 ├── buf.yaml              # Buf configuration
-├── buf.gen.yaml          # Buf code generation config
+├── buf.gen.yaml          # Buf code generation config (for local dev)
 ├── docker-compose.yml    # PostgreSQL container
 ├── Makefile              # Build automation
 └── README.md
 ```
+
+> **Note:** Generated proto code (`backend/internal/gen/` and `frontend/src/lib/gen/`) is **not committed** to the repository. Run `make generate` after cloning to generate these files locally. CI/CD pipelines automatically generate them during builds.
 
 ## Prerequisites
 
@@ -48,7 +52,20 @@ Full-stack webapp with **Go** backend, **PostgreSQL** database, and **Next.js** 
 make install
 ```
 
-### 2. Start PostgreSQL
+### 2. Generate Proto Code
+
+Generated code is not committed to the repository. Generate it after cloning:
+
+```bash
+make generate
+```
+
+This generates:
+- Go server code in `backend/internal/gen/`
+- TypeScript client code in `frontend/src/lib/gen/`
+- sqlc database code in `backend/internal/db/sqlc/`
+
+### 3. Start PostgreSQL
 
 ```bash
 docker compose up -d
@@ -56,7 +73,7 @@ docker compose up -d
 
 This starts PostgreSQL on port 5432 and automatically runs the initial migration.
 
-### 3. Start the Go Backend
+### 4. Start the Go Backend
 
 ```bash
 cd backend
@@ -65,7 +82,7 @@ go run .
 
 The Connect RPC server runs on http://localhost:8080
 
-### 4. Start the Next.js Frontend
+### 5. Start the Next.js Frontend
 
 ```bash
 cd frontend
@@ -115,6 +132,8 @@ This generates:
 - Go server code in `backend/internal/gen/`
 - TypeScript client code in `frontend/src/lib/gen/`
 - sqlc database code in `backend/internal/db/sqlc/`
+
+> **CI/CD Note:** Proto code is automatically generated during Railway builds via `nixpacks.toml`. Each service has its own `buf.gen.yaml` that generates only the code it needs.
 
 ### Using the API
 
@@ -241,6 +260,8 @@ gh repo create cloutdotgg --public --push
 3. Deploy backend with root directory `backend`
 4. Deploy frontend with root directory `frontend`
 5. Set environment variables accordingly
+
+> **Note:** Proto code generation happens automatically during builds. Each service's `nixpacks.toml` installs the `buf` CLI and runs `buf generate` before building. The proto files are copied from the parent directory during the build process.
 
 ## Architecture
 
