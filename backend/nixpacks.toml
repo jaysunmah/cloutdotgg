@@ -6,11 +6,9 @@ nixPkgs = ["go"]
 dependsOn = ["setup"]
 cmds = [
     "curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf",
-    "cp -r ../proto .",
-    "cd proto && buf dep update && cd ..",
+    "buf dep update proto",
     "mkdir -p internal/gen",
-    "buf generate proto",
-    "rm -rf proto"
+    "buf generate proto"
 ]
 
 [phases.build]
