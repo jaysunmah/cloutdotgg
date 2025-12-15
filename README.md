@@ -1,35 +1,54 @@
 # CloutGG
 
-Full-stack webapp with **Go** backend, **PostgreSQL** database, and **Next.js** frontend.
+Full-stack webapp with **Go** backend, **PostgreSQL** database, and **Next.js** frontend. Uses **Connect RPC** for type-safe API communication and **sqlc** for database queries.
 
 ## Project Structure
 
 ```
 .
+├── proto/                 # Protocol Buffer definitions
+│   └── api.proto          # RPC service and message definitions
 ├── backend/               # Go API server
 │   ├── internal/
-│   │   ├── api/          # HTTP handlers and routing
-│   │   └── db/           # Database connection
-│   ├── migrations/       # SQL migrations
+│   │   ├── gen/          # Generated Connect/protobuf code
+│   │   ├── db/
+│   │   │   └── sqlc/     # Generated sqlc database code
+│   │   └── service/      # RPC service implementations
+│   ├── db/
+│   │   └── migrations/   # SQL migrations (golang-migrate format)
 │   ├── go.mod
 │   └── main.go
 ├── frontend/             # Next.js app
-│   ├── src/app/         # App router pages
+│   ├── src/
+│   │   ├── app/         # App router pages
+│   │   └── lib/
+│   │       ├── api.ts    # API client using Connect
+│   │       └── gen/      # Generated Connect client code
 │   ├── package.json
 │   └── ...
+├── buf.yaml              # Buf configuration
+├── buf.gen.yaml          # Buf code generation config
 ├── docker-compose.yml    # PostgreSQL container
+├── Makefile              # Build automation
 └── README.md
 ```
 
 ## Prerequisites
 
-- [Go 1.22+](https://golang.org/dl/)
+- [Go 1.23+](https://golang.org/dl/)
 - [Node.js 20+](https://nodejs.org/)
 - [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL)
+- [Buf CLI](https://buf.build/docs/installation) (for protobuf code generation)
 
 ## Quick Start
 
-### 1. Start PostgreSQL
+### 1. Install Dependencies
+
+```bash
+make install
+```
+
+### 2. Start PostgreSQL
 
 ```bash
 docker compose up -d
@@ -37,46 +56,162 @@ docker compose up -d
 
 This starts PostgreSQL on port 5432 and automatically runs the initial migration.
 
-### 2. Start the Go Backend
+### 3. Start the Go Backend
 
 ```bash
 cd backend
-go mod download
 go run .
 ```
 
-The API server runs on http://localhost:8080
+The Connect RPC server runs on http://localhost:8080
 
-### 3. Start the Next.js Frontend
+### 4. Start the Next.js Frontend
 
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 
 The frontend runs on http://localhost:3000
 
-## API Endpoints
+## Tech Stack
 
-| Method | Endpoint        | Description      |
-| ------ | --------------- | ---------------- |
-| GET    | `/health`       | Health check     |
-| GET    | `/api/users`    | List all users   |
-| POST   | `/api/users`    | Create a user    |
-| GET    | `/api/users/:id`| Get user by ID   |
+- **Backend:** Go 1.24, Connect RPC, pgx (PostgreSQL driver)
+- **Database:** PostgreSQL 16, sqlc (type-safe queries)
+- **Frontend:** Next.js 15, React 18, Tailwind CSS, TypeScript
+- **RPC:** Connect (supports gRPC, gRPC-Web, and Connect protocols)
+- **Code Generation:** Buf, protoc-gen-go, protoc-gen-connect-go, protoc-gen-es
 
-### Example: Create a User
+## Connect RPC
 
-```bash
-curl -X POST http://localhost:8080/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"name": "John Doe", "email": "john@example.com"}'
+This project uses [Connect](https://connectrpc.com/) for type-safe RPC communication between the frontend and backend.
+
+### Service Definition
+
+All RPC methods are defined in `proto/api.proto`:
+
+```protobuf
+service RankingsService {
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+  rpc ListCompanies(ListCompaniesRequest) returns (ListCompaniesResponse);
+  rpc GetCompany(GetCompanyRequest) returns (GetCompanyResponse);
+  rpc GetMatchup(GetMatchupRequest) returns (GetMatchupResponse);
+  rpc SubmitVote(SubmitVoteRequest) returns (SubmitVoteResponse);
+  rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
+  // ... more methods
+}
 ```
 
-## Environment Variables
+### Generate Code
 
-Copy `.env.example` to `.env` and adjust as needed:
+After modifying `proto/api.proto`, regenerate the code:
+
+```bash
+make generate
+```
+
+This generates:
+- Go server code in `backend/internal/gen/`
+- TypeScript client code in `frontend/src/lib/gen/`
+- sqlc database code in `backend/internal/db/sqlc/`
+
+### Using the API
+
+**Backend (Go):**
+
+```go
+// The service implementation in internal/service/rankings.go
+func (s *RankingsService) GetCompany(
+    ctx context.Context,
+    req *connect.Request[gen.GetCompanyRequest],
+) (*connect.Response[gen.GetCompanyResponse], error) {
+    company, err := s.queries.GetCompanyBySlug(ctx, req.Msg.Slug)
+    // ... handle response
+}
+```
+
+**Frontend (TypeScript):**
+
+```typescript
+import { createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { RankingsService } from "./gen/api_pb";
+
+const transport = createConnectTransport({ baseUrl: API_URL });
+const client = createClient(RankingsService, transport);
+
+// Type-safe RPC call
+const response = await client.getCompany({ slug: "openai" });
+console.log(response.company?.name);
+```
+
+## Database (sqlc)
+
+Database queries are defined in SQL and compiled to type-safe Go code using [sqlc](https://sqlc.dev/).
+
+### Query Definitions
+
+Queries are in `backend/internal/db/sqlc/queries.sql`:
+
+```sql
+-- name: GetCompanyBySlug :one
+SELECT * FROM companies WHERE slug = $1;
+
+-- name: ListCompanies :many
+SELECT * FROM companies ORDER BY elo_rating DESC;
+```
+
+### Generate sqlc Code
+
+```bash
+cd backend && sqlc generate
+```
+
+### Using sqlc in Code
+
+```go
+// Type-safe database queries
+company, err := s.queries.GetCompanyBySlug(ctx, "openai")
+companies, err := s.queries.ListCompanies(ctx)
+```
+
+## Migrations
+
+Migrations use the golang-migrate format in `backend/db/migrations/`.
+
+### Create a Migration
+
+```bash
+make migrate-create
+# Enter migration name when prompted
+```
+
+### Run Migrations
+
+```bash
+export DATABASE_URL="postgres://postgres:postgres@localhost:5432/cloutgg?sslmode=disable"
+make migrate-up
+```
+
+### Rollback Migrations
+
+```bash
+make migrate-down
+```
+
+## Development Commands
+
+| Command | Description |
+|---------|-------------|
+| `make install` | Install all dependencies |
+| `make generate` | Generate all code (proto + sqlc) |
+| `make dev` | Start all services |
+| `make test` | Run all tests |
+| `make clean` | Clean up containers and generated code |
+| `make lint-proto` | Lint proto files |
+
+## Environment Variables
 
 ```bash
 # Database
@@ -89,44 +224,11 @@ PORT=8080
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
-## Development
-
-### Reset Database
-
-```bash
-docker compose down -v
-docker compose up -d
-```
-
-### Build for Production
-
-**Backend:**
-```bash
-cd backend
-go build -o bin/server .
-```
-
-**Frontend:**
-```bash
-cd frontend
-npm run build
-npm start
-```
-
-## Tech Stack
-
-- **Backend:** Go 1.22, Chi router, pgx (PostgreSQL driver)
-- **Database:** PostgreSQL 16
-- **Frontend:** Next.js 15, React 18, Tailwind CSS, TypeScript
-
-## Deploy to Railway (Recommended)
-
-Railway supports Go, Next.js, and PostgreSQL out of the box.
+## Deploy to Railway
 
 ### 1. Push to GitHub
 
 ```bash
-git init
 git add .
 git commit -m "Initial commit"
 gh repo create cloutdotgg --public --push
@@ -134,34 +236,26 @@ gh repo create cloutdotgg --public --push
 
 ### 2. Deploy on Railway
 
-1. Go to [railway.app](https://railway.app) and sign in with GitHub
-2. Click **"New Project"** → **"Deploy from GitHub repo"**
-3. Select your `cloutdotgg` repo
+1. Go to [railway.app](https://railway.app) and sign in
+2. Create new project and add PostgreSQL
+3. Deploy backend with root directory `backend`
+4. Deploy frontend with root directory `frontend`
+5. Set environment variables accordingly
 
-**Add PostgreSQL:**
-- Click **"+ New"** → **"Database"** → **"PostgreSQL"**
-- Copy the `DATABASE_URL` from the Postgres service
+## Architecture
 
-**Deploy Backend:**
-- Click **"+ New"** → **"GitHub Repo"** → Select repo
-- Set **Root Directory** to `backend`
-- Add environment variable: `DATABASE_URL` = (paste from Postgres)
-- Railway will auto-detect Go and deploy
-
-**Deploy Frontend:**
-- Click **"+ New"** → **"GitHub Repo"** → Select repo
-- Set **Root Directory** to `frontend`
-- Add environment variable: `NEXT_PUBLIC_API_URL` = (your backend URL, e.g., `https://backend-xxx.railway.app`)
-- Railway will auto-detect Next.js and deploy
-
-### 3. Run Database Migration
-
-In Railway, open the backend service terminal and run:
-```bash
-psql $DATABASE_URL -f /app/migrations/001_init.sql
+```
+┌─────────────┐     Connect RPC      ┌─────────────┐
+│   Next.js   │ ◄──────────────────► │   Go API    │
+│  Frontend   │    (HTTP/2, JSON)    │   Server    │
+└─────────────┘                      └──────┬──────┘
+                                            │
+                                     ┌──────▼──────┐
+                                     │ PostgreSQL  │
+                                     │  Database   │
+                                     └─────────────┘
 ```
 
-Or connect to the Postgres service directly and run the SQL.
-
-That's it! Your app is live 🚀
-
+- **Frontend** uses Connect-Web client for type-safe RPC calls
+- **Backend** implements Connect handlers, uses sqlc for database access
+- **Database** managed with golang-migrate migrations

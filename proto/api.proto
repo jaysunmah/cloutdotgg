@@ -1,0 +1,239 @@
+syntax = "proto3";
+
+package apiv1;
+
+option go_package = "github.com/cloutdotgg/backend/internal/gen/apiv1;apiv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Company represents an AI company
+message Company {
+  int32 id = 1;
+  string name = 2;
+  string slug = 3;
+  optional string logo_url = 4;
+  optional string description = 5;
+  optional string website = 6;
+  string category = 7;
+  repeated string tags = 8;
+  optional int32 founded_year = 9;
+  optional string hq_location = 10;
+  optional string employee_range = 11;
+  optional string funding_stage = 12;
+  int32 elo_rating = 13;
+  int32 total_votes = 14;
+  int32 wins = 15;
+  int32 losses = 16;
+  int32 rank = 17;
+  google.protobuf.Timestamp created_at = 18;
+  google.protobuf.Timestamp updated_at = 19;
+}
+
+// Vote represents a head-to-head vote record
+message Vote {
+  int32 id = 1;
+  int32 winner_id = 2;
+  int32 loser_id = 3;
+  optional string session_id = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+// CompanyRating represents a rating for a specific criterion
+message CompanyRating {
+  int32 id = 1;
+  int32 company_id = 2;
+  string criterion = 3;
+  int32 score = 4;
+  optional string session_id = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// AggregatedRating represents aggregated ratings for a criterion
+message AggregatedRating {
+  string criterion = 1;
+  double average_score = 2;
+  int32 total_ratings = 3;
+}
+
+// CompanyComment represents a comment/review
+message CompanyComment {
+  int32 id = 1;
+  int32 company_id = 2;
+  string content = 3;
+  bool is_current_employee = 4;
+  optional string session_id = 5;
+  int32 upvotes = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// CategoryCount represents a category with its company count
+message CategoryCount {
+  string category = 1;
+  int32 count = 2;
+}
+
+// ============= Request/Response Messages =============
+
+// Health
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  string database = 2;
+}
+
+// Stats
+message GetStatsRequest {}
+
+message GetStatsResponse {
+  int32 total_companies = 1;
+  int32 total_votes = 2;
+  int32 total_ratings = 3;
+  int32 total_comments = 4;
+  repeated string categories = 5;
+}
+
+// Categories
+message ListCategoriesRequest {}
+
+message ListCategoriesResponse {
+  repeated CategoryCount categories = 1;
+}
+
+// Companies
+message ListCompaniesRequest {
+  optional string category = 1;
+  optional string search = 2;
+}
+
+message ListCompaniesResponse {
+  repeated Company companies = 1;
+}
+
+message GetCompanyRequest {
+  string slug = 1;
+}
+
+message GetCompanyResponse {
+  Company company = 1;
+}
+
+// Matchup
+message GetMatchupRequest {
+  optional string category = 1;
+}
+
+message GetMatchupResponse {
+  Company company1 = 1;
+  Company company2 = 2;
+}
+
+// Voting
+message SubmitVoteRequest {
+  int32 winner_id = 1;
+  int32 loser_id = 2;
+  string session_id = 3;
+}
+
+message SubmitVoteResponse {
+  Company winner = 1;
+  Company loser = 2;
+  int32 winner_elo_diff = 3;
+  int32 loser_elo_diff = 4;
+}
+
+// Leaderboard
+message GetLeaderboardRequest {
+  optional string category = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GetLeaderboardResponse {
+  repeated Company companies = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// Ratings
+message SubmitRatingRequest {
+  int32 company_id = 1;
+  string criterion = 2;
+  int32 score = 3;
+  string session_id = 4;
+}
+
+message SubmitRatingResponse {
+  CompanyRating rating = 1;
+}
+
+message GetCompanyRatingsRequest {
+  string slug = 1;
+}
+
+message GetCompanyRatingsResponse {
+  repeated AggregatedRating ratings = 1;
+}
+
+// Comments
+message SubmitCommentRequest {
+  int32 company_id = 1;
+  string content = 2;
+  bool is_current_employee = 3;
+  string session_id = 4;
+}
+
+message SubmitCommentResponse {
+  CompanyComment comment = 1;
+}
+
+message GetCompanyCommentsRequest {
+  string slug = 1;
+}
+
+message GetCompanyCommentsResponse {
+  repeated CompanyComment comments = 1;
+}
+
+message UpvoteCommentRequest {
+  int32 comment_id = 1;
+}
+
+message UpvoteCommentResponse {
+  CompanyComment comment = 1;
+}
+
+// ============= Service Definition =============
+
+// RankingsService provides all API operations for the AI company rankings platform
+service RankingsService {
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  
+  // Stats
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+  
+  // Categories
+  rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
+  
+  // Companies
+  rpc ListCompanies(ListCompaniesRequest) returns (ListCompaniesResponse);
+  rpc GetCompany(GetCompanyRequest) returns (GetCompanyResponse);
+  
+  // Voting
+  rpc GetMatchup(GetMatchupRequest) returns (GetMatchupResponse);
+  rpc SubmitVote(SubmitVoteRequest) returns (SubmitVoteResponse);
+  
+  // Leaderboard
+  rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
+  
+  // Ratings
+  rpc SubmitRating(SubmitRatingRequest) returns (SubmitRatingResponse);
+  rpc GetCompanyRatings(GetCompanyRatingsRequest) returns (GetCompanyRatingsResponse);
+  
+  // Comments
+  rpc SubmitComment(SubmitCommentRequest) returns (SubmitCommentResponse);
+  rpc GetCompanyComments(GetCompanyCommentsRequest) returns (GetCompanyCommentsResponse);
+  rpc UpvoteComment(UpvoteCommentRequest) returns (UpvoteCommentResponse);
+}

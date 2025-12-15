@@ -38,3 +38,13 @@ core
 screenshots/
 demo_video.js
 test_voting*.js
+
+# Generated code (regenerate with `make generate`)
+# NOTE: We commit generated code for easier onboarding.
+# If you prefer not to, uncomment these lines:
+# backend/internal/gen/
+# backend/internal/db/sqlc/*.go
+# frontend/src/lib/gen/
+
+# Buf lock file
+proto/buf.lock
