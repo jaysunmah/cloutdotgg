@@ -2,28 +2,22 @@
 aptPkgs = ["curl"]
 
 [phases.install]
+cmds = ["npm ci"]
+
+[phases.generate]
+dependsOn = ["setup"]
 cmds = [
-    # Install buf CLI for proto generation
     "curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf",
-    # Install npm dependencies
-    "npm ci"
+    "cp -r ../proto .",
+    "cd proto && buf dep update && cd ..",
+    "mkdir -p src/lib/gen",
+    "buf generate proto",
+    "rm -rf proto"
 ]
 
 [phases.build]
-dependsOn = ["install"]
-cmds = [
-    # Copy proto files from parent directory (available in Railway monorepo builds)
-    "cp -r ../proto .",
-    # Update buf dependencies (resolves buf.build/googleapis/googleapis)
-    "cd proto && buf dep update && cd ..",
-    # Generate proto files using local buf.gen.yaml
-    "mkdir -p src/lib/gen",
-    "buf generate proto",
-    # Clean up copied proto directory
-    "rm -rf proto",
-    # Build Next.js
-    "npm run build"
-]
+dependsOn = ["install", "generate"]
+cmds = ["npm run build"]
 
 [start]
 cmd = "npm run start"
