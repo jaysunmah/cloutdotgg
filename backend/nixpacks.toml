@@ -1,2 +1,8 @@
 [phases.setup]
 aptPkgs = ["postgresql-client"]
+
+[phases.build]
+cmds = ["go build -o server ."]
+
+[start]
+cmd = "sh -c 'for f in migrations/*.sql; do psql $DATABASE_URL -f $f; done && ./server'"

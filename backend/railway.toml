@@ -4,5 +4,4 @@ builder = "nixpacks"
 [deploy]
 healthcheckPath = "/health"
 restartPolicyType = "on_failure"
-startCommand = "sh -c 'for f in migrations/*.sql; do psql \"$DATABASE_URL\" -f \"$f\"; done && ./out'"
 
