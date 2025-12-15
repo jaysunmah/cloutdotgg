@@ -34,3 +34,7 @@ coverage/
 *.tmp
 *.temp
 
+core
+screenshots/
+demo_video.js
+test_voting*.js
