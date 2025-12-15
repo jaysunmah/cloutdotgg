@@ -40,6 +40,10 @@ demo_video.js
 test_voting*.js
 
 # Generated protobuf files (regenerate with `make proto`)
-# Uncomment if you want to exclude generated files from git
+# NOTE: We commit generated protos for easier onboarding.
+# If you prefer not to, uncomment these lines:
 # backend/internal/pb/
 # frontend/src/lib/proto/
+
+# Test files
+frontend/src/lib/proto.test.ts
