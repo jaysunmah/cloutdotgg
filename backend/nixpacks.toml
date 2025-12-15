@@ -13,6 +13,8 @@ dependsOn = ["install"]
 cmds = [
     # Copy proto files from parent directory (available in Railway monorepo builds)
     "cp -r ../proto .",
+    # Update buf dependencies (resolves buf.build/googleapis/googleapis)
+    "cd proto && buf dep update && cd ..",
     # Generate proto files using local buf.gen.yaml
     "mkdir -p internal/gen",
     "buf generate proto",
