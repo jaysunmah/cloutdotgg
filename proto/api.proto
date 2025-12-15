@@ -1,26 +1,25 @@
 syntax = "proto3";
 
-package api;
+package apiv1;
 
-option go_package = "github.com/cloutdotgg/backend/internal/pb";
+option go_package = "github.com/cloutdotgg/backend/internal/gen/apiv1;apiv1";
 
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
 
 // Company represents an AI company
 message Company {
   int32 id = 1;
   string name = 2;
   string slug = 3;
-  google.protobuf.StringValue logo_url = 4;
-  google.protobuf.StringValue description = 5;
-  google.protobuf.StringValue website = 6;
+  optional string logo_url = 4;
+  optional string description = 5;
+  optional string website = 6;
   string category = 7;
   repeated string tags = 8;
-  google.protobuf.Int32Value founded_year = 9;
-  google.protobuf.StringValue hq_location = 10;
-  google.protobuf.StringValue employee_range = 11;
-  google.protobuf.StringValue funding_stage = 12;
+  optional int32 founded_year = 9;
+  optional string hq_location = 10;
+  optional string employee_range = 11;
+  optional string funding_stage = 12;
   int32 elo_rating = 13;
   int32 total_votes = 14;
   int32 wins = 15;
@@ -30,39 +29,13 @@ message Company {
   google.protobuf.Timestamp updated_at = 19;
 }
 
-// CompanyList is a list of companies
-message CompanyList {
-  repeated Company companies = 1;
-}
-
-// Vote represents a head-to-head vote
+// Vote represents a head-to-head vote record
 message Vote {
   int32 id = 1;
   int32 winner_id = 2;
   int32 loser_id = 3;
-  google.protobuf.StringValue session_id = 4;
+  optional string session_id = 4;
   google.protobuf.Timestamp created_at = 5;
-}
-
-// VoteRequest represents a voting request
-message VoteRequest {
-  int32 winner_id = 1;
-  int32 loser_id = 2;
-  string session_id = 3;
-}
-
-// VoteResponse represents the voting response with updated ELOs
-message VoteResponse {
-  Company winner = 1;
-  Company loser = 2;
-  int32 winner_elo_diff = 3;
-  int32 loser_elo_diff = 4;
-}
-
-// MatchupPair represents two companies for voting
-message MatchupPair {
-  Company company1 = 1;
-  Company company2 = 2;
 }
 
 // CompanyRating represents a rating for a specific criterion
@@ -71,16 +44,8 @@ message CompanyRating {
   int32 company_id = 2;
   string criterion = 3;
   int32 score = 4;
-  google.protobuf.StringValue session_id = 5;
+  optional string session_id = 5;
   google.protobuf.Timestamp created_at = 6;
-}
-
-// RatingRequest represents a rating submission
-message RatingRequest {
-  int32 company_id = 1;
-  string criterion = 2;
-  int32 score = 3;
-  string session_id = 4;
 }
 
 // AggregatedRating represents aggregated ratings for a criterion
@@ -90,52 +55,37 @@ message AggregatedRating {
   int32 total_ratings = 3;
 }
 
-// AggregatedRatingList is a list of aggregated ratings
-message AggregatedRatingList {
-  repeated AggregatedRating ratings = 1;
-}
-
 // CompanyComment represents a comment/review
 message CompanyComment {
   int32 id = 1;
   int32 company_id = 2;
   string content = 3;
   bool is_current_employee = 4;
-  google.protobuf.StringValue session_id = 5;
+  optional string session_id = 5;
   int32 upvotes = 6;
   google.protobuf.Timestamp created_at = 7;
 }
 
-// CommentRequest represents a comment submission
-message CommentRequest {
-  int32 company_id = 1;
-  string content = 2;
-  bool is_current_employee = 3;
-  string session_id = 4;
-}
-
-// CommentList is a list of comments
-message CommentList {
-  repeated CompanyComment comments = 1;
-}
-
-// LeaderboardRequest represents a leaderboard query
-message LeaderboardRequest {
+// CategoryCount represents a category with its company count
+message CategoryCount {
   string category = 1;
-  int32 page = 2;
-  int32 page_size = 3;
+  int32 count = 2;
 }
 
-// LeaderboardResponse represents the leaderboard data
-message LeaderboardResponse {
-  repeated Company companies = 1;
-  int32 total_count = 2;
-  int32 page = 3;
-  int32 page_size = 4;
+// ============= Request/Response Messages =============
+
+// Health
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  string database = 2;
 }
 
-// StatsResponse represents overall platform stats
-message StatsResponse {
+// Stats
+message GetStatsRequest {}
+
+message GetStatsResponse {
   int32 total_companies = 1;
   int32 total_votes = 2;
   int32 total_ratings = 3;
@@ -143,48 +93,147 @@ message StatsResponse {
   repeated string categories = 5;
 }
 
-// CategoryCount represents a category with its count
-message CategoryCount {
-  string category = 1;
-  int32 count = 2;
-}
+// Categories
+message ListCategoriesRequest {}
 
-// CategoryCountList is a list of category counts
-message CategoryCountList {
+message ListCategoriesResponse {
   repeated CategoryCount categories = 1;
 }
 
-// HealthResponse represents health check response
-message HealthResponse {
-  string status = 1;
-  string database = 2;
+// Companies
+message ListCompaniesRequest {
+  optional string category = 1;
+  optional string search = 2;
 }
 
-// ErrorResponse represents an error response
-message ErrorResponse {
-  string error = 1;
+message ListCompaniesResponse {
+  repeated Company companies = 1;
 }
 
-// GetCompaniesRequest represents a request to get companies
-message GetCompaniesRequest {
-  string category = 1;
-  string search = 2;
-}
-
-// GetCompanyRequest represents a request to get a single company
 message GetCompanyRequest {
   string slug = 1;
 }
 
-// GetMatchupRequest represents a request to get a matchup
-message GetMatchupRequest {
-  string category = 1;
+message GetCompanyResponse {
+  Company company = 1;
 }
 
-// UpvoteCommentRequest represents a request to upvote a comment
+// Matchup
+message GetMatchupRequest {
+  optional string category = 1;
+}
+
+message GetMatchupResponse {
+  Company company1 = 1;
+  Company company2 = 2;
+}
+
+// Voting
+message SubmitVoteRequest {
+  int32 winner_id = 1;
+  int32 loser_id = 2;
+  string session_id = 3;
+}
+
+message SubmitVoteResponse {
+  Company winner = 1;
+  Company loser = 2;
+  int32 winner_elo_diff = 3;
+  int32 loser_elo_diff = 4;
+}
+
+// Leaderboard
+message GetLeaderboardRequest {
+  optional string category = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GetLeaderboardResponse {
+  repeated Company companies = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// Ratings
+message SubmitRatingRequest {
+  int32 company_id = 1;
+  string criterion = 2;
+  int32 score = 3;
+  string session_id = 4;
+}
+
+message SubmitRatingResponse {
+  CompanyRating rating = 1;
+}
+
+message GetCompanyRatingsRequest {
+  string slug = 1;
+}
+
+message GetCompanyRatingsResponse {
+  repeated AggregatedRating ratings = 1;
+}
+
+// Comments
+message SubmitCommentRequest {
+  int32 company_id = 1;
+  string content = 2;
+  bool is_current_employee = 3;
+  string session_id = 4;
+}
+
+message SubmitCommentResponse {
+  CompanyComment comment = 1;
+}
+
+message GetCompanyCommentsRequest {
+  string slug = 1;
+}
+
+message GetCompanyCommentsResponse {
+  repeated CompanyComment comments = 1;
+}
+
 message UpvoteCommentRequest {
   int32 comment_id = 1;
 }
 
-// Empty message for requests/responses with no body
-message Empty {}
+message UpvoteCommentResponse {
+  CompanyComment comment = 1;
+}
+
+// ============= Service Definition =============
+
+// RankingsService provides all API operations for the AI company rankings platform
+service RankingsService {
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  
+  // Stats
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+  
+  // Categories
+  rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
+  
+  // Companies
+  rpc ListCompanies(ListCompaniesRequest) returns (ListCompaniesResponse);
+  rpc GetCompany(GetCompanyRequest) returns (GetCompanyResponse);
+  
+  // Voting
+  rpc GetMatchup(GetMatchupRequest) returns (GetMatchupResponse);
+  rpc SubmitVote(SubmitVoteRequest) returns (SubmitVoteResponse);
+  
+  // Leaderboard
+  rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
+  
+  // Ratings
+  rpc SubmitRating(SubmitRatingRequest) returns (SubmitRatingResponse);
+  rpc GetCompanyRatings(GetCompanyRatingsRequest) returns (GetCompanyRatingsResponse);
+  
+  // Comments
+  rpc SubmitComment(SubmitCommentRequest) returns (SubmitCommentResponse);
+  rpc GetCompanyComments(GetCompanyCommentsRequest) returns (GetCompanyCommentsResponse);
+  rpc UpvoteComment(UpvoteCommentRequest) returns (UpvoteCommentResponse);
+}

@@ -1,0 +1,22 @@
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: github.com/cloutdotgg/backend/internal/gen
+    except:
+      - buf.build/googleapis/googleapis
+plugins:
+  # Generate Go protobuf code
+  - plugin: buf.build/protocolbuffers/go
+    out: backend/internal/gen
+    opt: paths=source_relative
+  # Generate Connect-Go service code
+  - plugin: buf.build/connectrpc/go
+    out: backend/internal/gen
+    opt: paths=source_relative
+  # Generate ES/TypeScript protobuf code
+  - plugin: buf.build/bufbuild/es
+    out: frontend/src/lib/gen
+  # Generate Connect-ES client code
+  - plugin: buf.build/connectrpc/es
+    out: frontend/src/lib/gen

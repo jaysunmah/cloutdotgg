@@ -9,8 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cloutdotgg/backend/internal/api"
+	"connectrpc.com/connect"
+	"github.com/rs/cors"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
 	"github.com/cloutdotgg/backend/internal/db"
+	"github.com/cloutdotgg/backend/internal/gen/genconnect"
+	"github.com/cloutdotgg/backend/internal/service"
 	"github.com/joho/godotenv"
 )
 
@@ -39,14 +45,73 @@ func main() {
 
 	log.Println("Connected to database")
 
-	// Create API server
-	server := api.NewServer(pool)
-	router := server.Routes()
+	// Create rankings service
+	rankingsService := service.NewRankingsService(pool)
+
+	// Create Connect handler
+	mux := http.NewServeMux()
+
+	// Register Connect service
+	path, handler := genconnect.NewRankingsServiceHandler(
+		rankingsService,
+		connect.WithInterceptors(),
+	)
+	mux.Handle(path, handler)
+
+	// Add health check endpoint (REST fallback)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		if err := pool.Ping(r.Context()); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"status":"unhealthy","database":"disconnected"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"healthy","database":"connected"}`))
+	})
+
+	// CORS configuration
+	corsHandler := cors.New(cors.Options{
+		AllowedOrigins: []string{
+			"http://localhost:3000",
+			"https://*.vercel.app",
+			"https://*.railway.app",
+			"https://*.up.railway.app",
+		},
+		AllowedMethods: []string{
+			http.MethodGet,
+			http.MethodPost,
+			http.MethodOptions,
+		},
+		AllowedHeaders: []string{
+			"Accept",
+			"Accept-Encoding",
+			"Authorization",
+			"Connect-Protocol-Version",
+			"Connect-Timeout-Ms",
+			"Content-Encoding",
+			"Content-Type",
+			"Grpc-Timeout",
+			"X-Grpc-Web",
+			"X-User-Agent",
+		},
+		ExposedHeaders: []string{
+			"Connect-Content-Encoding",
+			"Connect-Protocol-Version",
+			"Grpc-Message",
+			"Grpc-Status",
+			"Grpc-Status-Details-Bin",
+		},
+		AllowCredentials: true,
+		MaxAge:           7200,
+	})
+
+	// Wrap with CORS and HTTP/2 support
+	h2cHandler := h2c.NewHandler(corsHandler.Handler(mux), &http2.Server{})
 
 	// Create HTTP server
 	httpServer := &http.Server{
 		Addr:         ":" + port,
-		Handler:      router,
+		Handler:      h2cHandler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -54,7 +119,8 @@ func main() {
 
 	// Start server in goroutine
 	go func() {
-		log.Printf("Server starting on http://localhost:%s", port)
+		log.Printf("Connect server starting on http://localhost:%s", port)
+		log.Printf("Service available at http://localhost:%s%s", port, path)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed: %v", err)
 		}
@@ -77,4 +143,3 @@ func main() {
 
 	log.Println("Server stopped")
 }
-
