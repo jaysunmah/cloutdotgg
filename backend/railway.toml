@@ -1,8 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "../Dockerfile.backend"
-
-[deploy]
-healthcheckPath = "/health"
-restartPolicyType = "on_failure"
-
