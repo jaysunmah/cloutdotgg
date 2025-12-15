@@ -1,0 +1,33 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install buf for proto generation
+RUN apk add --no-cache curl && \
+    curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && \
+    chmod +x /usr/local/bin/buf
+
+# Copy proto files and buf config
+COPY proto/ ./proto/
+COPY frontend/buf.gen.yaml ./frontend/
+
+# Generate proto code
+RUN buf dep update proto && \
+    mkdir -p frontend/src/lib/gen && \
+    buf generate proto --template frontend/buf.gen.yaml
+
+# Copy frontend source and build
+COPY frontend/ ./frontend/
+WORKDIR /app/frontend
+RUN npm ci && npm run build
+
+# Final stage
+FROM node:20-alpine
+WORKDIR /app
+
+COPY --from=builder /app/frontend/.next ./.next
+COPY --from=builder /app/frontend/node_modules ./node_modules
+COPY --from=builder /app/frontend/package.json ./
+
+EXPOSE 3000
+CMD ["npm", "run", "start"]

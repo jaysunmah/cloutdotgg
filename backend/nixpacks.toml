@@ -1,3 +1,4 @@
+# NOTE: Railway Root Directory must be set to "/" (repo root) for this to work
 [phases.setup]
 aptPkgs = ["postgresql-client", "curl"]
 nixPkgs = ["go"]
@@ -7,13 +8,13 @@ dependsOn = ["setup"]
 cmds = [
     "curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf",
     "buf dep update proto",
-    "mkdir -p internal/gen",
-    "buf generate proto"
+    "mkdir -p backend/internal/gen",
+    "buf generate proto --template backend/buf.gen.yaml"
 ]
 
 [phases.build]
 dependsOn = ["generate"]
-cmds = ["go build -o server ."]
+cmds = ["cd backend && go build -o server ."]
 
 [start]
-cmd = "sh -c 'for f in migrations/*.sql; do psql $DATABASE_URL -f $f; done && ./server'"
+cmd = "cd backend && sh -c 'for f in migrations/*.sql; do psql $DATABASE_URL -f $f; done && ./server'"

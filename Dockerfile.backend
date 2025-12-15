@@ -1,0 +1,36 @@
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /app
+
+# Install buf for proto generation
+RUN apk add --no-cache curl postgresql-client && \
+    curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && \
+    chmod +x /usr/local/bin/buf
+
+# Copy proto files and buf config
+COPY proto/ ./proto/
+COPY backend/buf.gen.yaml ./backend/
+
+# Generate proto code
+RUN buf dep update proto && \
+    mkdir -p backend/internal/gen && \
+    buf generate proto --template backend/buf.gen.yaml
+
+# Copy backend source and build
+COPY backend/ ./backend/
+WORKDIR /app/backend
+RUN go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -o server .
+
+# Final stage
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates postgresql-client
+WORKDIR /app
+
+COPY --from=builder /app/backend/server .
+COPY --from=builder /app/backend/migrations/ ./migrations/
+COPY backend/start.sh .
+RUN chmod +x start.sh
+
+EXPOSE 8080
+CMD ["./start.sh"]

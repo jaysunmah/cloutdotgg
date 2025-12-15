@@ -1,21 +1,22 @@
+# NOTE: Railway Root Directory must be set to "/" (repo root) for this to work
 [phases.setup]
 aptPkgs = ["curl"]
 
 [phases.install]
-cmds = ["npm ci"]
+cmds = ["cd frontend && npm ci"]
 
 [phases.generate]
 dependsOn = ["setup"]
 cmds = [
     "curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf",
     "buf dep update proto",
-    "mkdir -p src/lib/gen",
-    "buf generate proto"
+    "mkdir -p frontend/src/lib/gen",
+    "buf generate proto --template frontend/buf.gen.yaml"
 ]
 
 [phases.build]
 dependsOn = ["install", "generate"]
-cmds = ["npm run build"]
+cmds = ["cd frontend && npm run build"]
 
 [start]
-cmd = "npm run start"
+cmd = "cd frontend && npm run start"
