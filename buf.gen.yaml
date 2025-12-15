@@ -14,9 +14,6 @@ plugins:
   - plugin: buf.build/connectrpc/go
     out: backend/internal/gen
     opt: paths=source_relative
-  # Generate ES/TypeScript protobuf code
+  # Generate ES/TypeScript protobuf code (includes service descriptors for Connect)
   - plugin: buf.build/bufbuild/es
-    out: frontend/src/lib/gen
-  # Generate Connect-ES client code
-  - plugin: buf.build/connectrpc/es
     out: frontend/src/lib/gen

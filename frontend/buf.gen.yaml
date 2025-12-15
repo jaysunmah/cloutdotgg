@@ -2,9 +2,6 @@ version: v1
 managed:
   enabled: true
 plugins:
-  # Generate ES/TypeScript protobuf code
+  # Generate ES/TypeScript protobuf code (includes service descriptors for Connect)
   - plugin: buf.build/bufbuild/es
-    out: src/lib/gen
-  # Generate Connect-ES client code
-  - plugin: buf.build/connectrpc/es
     out: src/lib/gen

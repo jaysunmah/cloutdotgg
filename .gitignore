@@ -40,10 +40,5 @@ screenshots/
 demo_video.js
 test_voting*.js
 
-# Generated code (regenerate with `make generate`)
-# These are auto-generated during CI/CD builds
-backend/internal/gen/
-frontend/src/lib/gen/
-
 # Buf lock file
 proto/buf.lock

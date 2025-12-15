@@ -1,24 +1,9 @@
 [phases.setup]
-aptPkgs = ["postgresql-client", "curl"]
+aptPkgs = ["postgresql-client"]
 nixPkgs = ["go"]
 
-[phases.install]
-cmds = [
-    # Install buf CLI for proto generation
-    "curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf"
-]
-
 [phases.build]
-dependsOn = ["install"]
 cmds = [
-    # Copy proto files from parent directory (available in Railway monorepo builds)
-    "cp -r ../proto .",
-    # Generate proto files using local buf.gen.yaml
-    "mkdir -p internal/gen",
-    "buf generate proto",
-    # Clean up copied proto directory
-    "rm -rf proto",
-    # Build the Go binary
     "go build -o server ."
 ]
 
