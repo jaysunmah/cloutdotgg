@@ -2,85 +2,88 @@
 
 ## Installation Details
 
-**Buf CLI Version:** 1.61.0
+- **Version Installed**: 1.61.0
+- **Installation Method**: Binary install from GitHub releases
+- **Installation Location**: `/usr/local/bin/buf`
+- **System Architecture**: Linux x86_64
 
-**Installation Method:** Direct binary download from GitHub releases
-- Downloaded latest release from: `https://github.com/bufbuild/buf/releases/latest`
-- Installed to: `/usr/local/bin/buf`
-- Platform: Linux (x86_64)
+## Installation Command Used
 
-## Verification Results
-
-### 1. Buf CLI Installation ✓
-- Command: `buf --version`
-- Result: Successfully installed version **1.61.0**
-- Location: `/usr/local/bin/buf`
-
-### 2. Buf Lint Test ✓
-- Command: `buf lint proto`
-- Result: **Lint completed successfully**
-- Configuration: Read from `/workspace/proto/buf.yaml`
-- Warnings:
-  - Deprecation notice: Category `DEFAULT` is deprecated, recommended to use `STANDARD` instead
-  - Lint rule violation: Package name "apiv1" should be versioned (e.g., "apiv1.v1")
-    - Location: `proto/apiv1/api.proto:3:1`
-    - This is a style recommendation for versioning, not a critical error
-
-### 3. Configuration File Reading ✓
-- **buf.yaml** (proto module config): Successfully read and parsed
-  - Version: v1
-  - Module name: `buf.build/cloutgg/api`
-  - Dependencies: `buf.build/googleapis/googleapis`
-  - Lint rules: Uses DEFAULT category (32 rules configured)
-  - Breaking change detection: Configured with FILE strategy
-
-- **buf.gen.yaml** (code generation config): Successfully read and validated
-  - Version: v1
-  - Managed mode: Enabled
-  - Go package prefix: `github.com/cloutdotgg/backend/internal/gen`
-  - Plugins configured:
-    1. `protocolbuffers/go` - Go protobuf code generation
-    2. `connectrpc/go` - Connect-Go service code generation
-    3. `bufbuild/es` - ES/TypeScript protobuf code generation
-    4. `connectrpc/es` - Connect-ES client code generation
-
-### 4. Buf Build Test ✓
-- Command: `buf build proto`
-- Result: **Build completed successfully** with no errors
-
-### 5. Lint Rules Configuration ✓
-- Successfully retrieved configured lint rules
-- Total rules active: 32 lint rules from the STANDARD/DEFAULT category
-- All rules are functioning correctly
-
-## No Errors Encountered
-
-All tests passed successfully. The only items noted were:
-1. **Deprecation warning** - Using `DEFAULT` category (still works, but `STANDARD` is recommended)
-2. **Style suggestion** - Package versioning recommendation (not blocking)
-
-## Next Steps
-
-Buf CLI is now fully operational and ready for:
-- Protobuf code generation: `buf generate`
-- Linting proto files: `buf lint proto`
-- Breaking change detection: `buf breaking proto --against <reference>`
-- Building and validating proto files: `buf build proto`
-
-## Commands Available
-
-From the Makefile and manual testing, these commands work:
 ```bash
-buf lint proto              # Lint protobuf files
-buf generate proto         # Generate code from proto files
-buf build proto            # Build and validate proto files
-buf format proto --diff    # Check formatting
-buf config ls-lint-rules --config proto/buf.yaml --configured-only
+curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-$(uname -s)-$(uname -m)" -o /tmp/buf
+chmod +x /tmp/buf
+sudo mv /tmp/buf /usr/local/bin/buf
 ```
 
-## Configuration Files Present
+## Testing Results
 
-1. `/workspace/proto/buf.yaml` - Module configuration
-2. `/workspace/buf.gen.yaml` - Code generation configuration (root level)
-3. `/workspace/backend/buf.gen.yaml` - Backend-specific generation config (if needed)
-4. `/workspace/frontend/buf.gen.yaml` - Frontend-specific generation config (if needed)
+### 1. Linting Proto Files ✅
+
+**Command**: `buf lint proto`
+
+**Result**: SUCCESS (with warnings)
+
+**Output**:
+- Warning: Category DEFAULT in buf.yaml is deprecated (should use STANDARD)
+- Lint issue: Package name "apiv1" should be suffixed with version like "apiv1.v1"
+
+The linter is working correctly and identified style issues according to buf's best practices.
+
+### 2. Code Generation ✅
+
+**Command**: `buf generate proto`
+
+**Result**: SUCCESS
+
+**Generated Files**:
+
+Backend (Go):
+- `/workspace/backend/internal/gen/apiv1/api.pb.go` - Protocol buffer definitions
+- `/workspace/backend/internal/gen/apiv1/apiv1connect/` - Connect-Go service code
+
+Frontend (TypeScript/ES):
+- `/workspace/frontend/src/lib/gen/apiv1/api_pb.js` - Protocol buffer definitions
+- `/workspace/frontend/src/lib/gen/apiv1/api_pb.d.ts` - TypeScript definitions
+- `/workspace/frontend/src/lib/gen/apiv1/api_connect.js` - Connect-ES client code
+- `/workspace/frontend/src/lib/gen/apiv1/api_connect.d.ts` - TypeScript definitions for client
+
+### 3. Configuration Verification ✅
+
+**buf.yaml location**: `/workspace/proto/buf.yaml`
+
+**Configuration**:
+```yaml
+version: v1
+name: buf.build/cloutgg/api
+deps:
+  - buf.build/googleapis/googleapis
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+```
+
+## Integration with Project
+
+The buf CLI is fully integrated with the project's Makefile:
+
+- `make generate-proto` - Generates protobuf code using buf
+- `make lint-proto` - Lints proto files using buf
+- `make format-proto` - Formats proto files using buf
+
+## Recommendations (Optional Improvements)
+
+1. **Update buf.yaml lint configuration**: Change `DEFAULT` to `STANDARD` to avoid deprecation warning
+2. **Fix package naming**: Consider renaming package from `apiv1` to `apiv1.v1` to follow buf best practices
+3. **Add to install-tools**: Consider adding buf installation to the Makefile's `install-tools` target
+
+## Status
+
+✅ Buf CLI is successfully installed and fully functional
+✅ Can lint proto files
+✅ Can generate code for both backend (Go) and frontend (TypeScript)
+✅ All generated code is up to date
+
+The setup is complete and ready for development!
