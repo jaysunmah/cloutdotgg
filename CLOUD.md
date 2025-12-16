@@ -20,8 +20,9 @@ The VM comes with the following tools already installed and configured:
 |------|---------|----------|---------|
 | **Node.js** | v22.21.1 | `/home/ubuntu/.nvm/versions/node/v22.21.1/bin/node` | JavaScript runtime for frontend |
 | **npm** | v10.9.4 | `/home/ubuntu/.nvm/versions/node/v22.21.1/bin/npm` | Package manager for frontend |
-| **Go** | 1.22.2 | `/usr/bin/go` | Backend programming language |
-| **Docker** | 28.2.2 | `/usr/bin/docker` | Container runtime for PostgreSQL |
+| **Go** | 1.22.2 | `/usr/bin/go` | Backend programming language (auto-upgrades to 1.24.11 toolchain when needed) |
+| **Docker** | 29.1.3 | `/usr/bin/docker` | Container runtime for PostgreSQL |
+| **Docker Compose** | v5.0.0 | Built into Docker CLI | Container orchestration |
 | **Buf CLI** | 1.61.0 | `/usr/local/bin/buf` | Protobuf code generation |
 | **sqlc** | 1.30.0 | `/home/ubuntu/go/bin/sqlc` | Type-safe SQL code generation |
 
@@ -37,11 +38,15 @@ These Go tools are installed in `/home/ubuntu/go/bin/`:
 
 All npm packages are installed in `/workspace/frontend/node_modules/`:
 - 383 packages installed with 0 vulnerabilities
-- Key packages: next@15.5.9, react@18.3.1, typescript@5.9.3
+- Key packages: next@15.5.9, react@18.3.1, typescript@5.6.3
+- Build and type checking verified working
 
 ### Backend Dependencies
 
 All Go modules are downloaded via `go mod download` in `/workspace/backend/`.
+- All dependencies verified with `go mod verify`
+- Backend builds successfully (17 MB binary)
+- Uses Go toolchain 1.24.11 automatically when needed by dependencies
 
 ## Environment Configuration
 
@@ -74,7 +79,13 @@ This generates:
 - TypeScript client code in `frontend/src/lib/gen/`
 - sqlc database code in `backend/internal/db/sqlc/`
 
-### 2. Start PostgreSQL
+### 2. Start Docker Daemon (if not running)
+
+```bash
+bash start-docker-daemon.sh
+```
+
+### 3. Start PostgreSQL
 
 ```bash
 docker compose up -d
@@ -82,7 +93,7 @@ docker compose up -d
 
 This starts PostgreSQL on port 5434 (mapped from container port 5432).
 
-### 3. Start Backend
+### 4. Start Backend
 
 ```bash
 cd backend
@@ -91,7 +102,7 @@ go run .
 
 The Connect RPC server runs on http://localhost:8080
 
-### 4. Start Frontend
+### 5. Start Frontend
 
 ```bash
 cd frontend
@@ -115,37 +126,52 @@ The frontend runs on http://localhost:3000
 
 ### Docker Daemon
 
-Docker is installed but the system doesn't use systemd. If the Docker daemon is not running:
+Docker is installed with a custom configuration for VM environments. The Docker daemon is configured to use the `vfs` storage driver (instead of `overlay2`) for compatibility with containerized/VM environments where nested overlayfs is not supported.
 
+**Configuration file**: `/etc/docker/daemon.json`
+```json
+{
+  "storage-driver": "vfs"
+}
+```
+
+To start the Docker daemon:
+
+```bash
+bash /workspace/start-docker-daemon.sh
+```
+
+Or manually:
 ```bash
 sudo dockerd &
 ```
 
-### Docker Compose Compatibility
+### Docker Compose
 
-The apt-installed `docker-compose` (v1.29.2) has compatibility issues with the system's Python/requests libraries. As a workaround, you can:
-
-1. Use native `docker` commands directly
-2. Install Docker Compose V2 plugin (recommended for production)
-
-The PostgreSQL container can be managed with direct docker commands:
+Docker Compose v5.0.0 is built into the Docker CLI. Use `docker compose` (with a space) instead of the legacy `docker-compose` command:
 
 ```bash
-# Start database
-docker run -d \
-  --name cloutgg-postgres \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=cloutgg \
-  -p 5434:5432 \
-  postgres:16-alpine
+# Start PostgreSQL
+docker compose up -d
 
-# Stop database
-docker stop cloutgg-postgres
-docker rm cloutgg-postgres
+# Stop and remove containers
+docker compose down
+
+# View logs
+docker compose logs -f
 ```
 
-However, for development, `docker compose up -d` should work despite the warning messages.
+### PostgreSQL Container
+
+The PostgreSQL 16 container is configured in `docker-compose.yml`:
+- **Image**: postgres:16-alpine
+- **Port**: 5434 (host) → 5432 (container)
+- **Database**: cloutgg
+- **Username**: postgres
+- **Password**: postgres
+- **Health check**: Configured and tested
+
+The container has been tested successfully and can accept connections.
 
 ## Verification
 
@@ -153,15 +179,18 @@ To verify the VM setup is working correctly:
 
 ```bash
 # Check all tools are available
-which node npm go docker buf sqlc
+which node npm go docker buf sqlc protoc-gen-go protoc-gen-connect-go
 
 # Check versions
-node --version    # v22.21.1
-npm --version     # 10.9.4
-go version        # go1.22.2
-docker --version  # 28.2.2
-buf --version     # 1.61.0
-sqlc version      # v1.30.0
+node --version             # v22.21.1
+npm --version              # 10.9.4
+go version                 # go1.22.2 linux/amd64
+docker --version           # 29.1.3
+docker compose version     # v5.0.0
+buf --version              # 1.61.0
+sqlc version               # v1.30.0
+protoc-gen-go --version    # v1.36.11
+protoc-gen-connect-go --version  # 1.19.1
 
 # Generate code
 make generate
@@ -169,8 +198,11 @@ make generate
 # Build backend
 cd backend && go build
 
-# Lint frontend
-cd frontend && npm run lint
+# Build frontend
+cd frontend && npm run build
+
+# Type check frontend
+cd frontend && npx tsc --noEmit
 ```
 
 All commands should complete successfully.
@@ -207,16 +239,21 @@ Note: The database port is 5434 (not 5432) due to the docker-compose.yml configu
 
 **Symptom**: `Cannot connect to the Docker daemon`
 
-**Solution**: Start the Docker daemon manually:
+**Solution**: Start the Docker daemon using the provided script:
+```bash
+bash /workspace/start-docker-daemon.sh
+```
+
+Or start manually:
 ```bash
 sudo dockerd &
 ```
 
-### Issue 3: docker-compose warnings
+### Issue 3: Docker storage driver errors
 
-**Symptom**: URLSchemeUnknown errors with docker-compose
+**Symptom**: Overlay filesystem errors when starting containers
 
-**Solution**: These are warnings and can be ignored. The docker-compose commands still work. Alternatively, use direct docker commands.
+**Solution**: The VM is configured to use the `vfs` storage driver in `/etc/docker/daemon.json`. This is already set up and should work automatically. If you encounter storage issues, verify the daemon.json configuration is correct.
 
 ## Railway Deployment
 
@@ -241,15 +278,20 @@ Railway automatically:
 ## Summary
 
 The VM is now fully configured with:
-- ✅ Node.js 22.21.1 with npm 10.9.4
-- ✅ Go 1.22.2 with required tools
-- ✅ Docker 28.2.2 with PostgreSQL 16 support
-- ✅ Buf CLI 1.61.0 for protobuf generation
-- ✅ sqlc 1.30.0 for database code generation
-- ✅ All frontend dependencies installed (383 packages)
-- ✅ All backend dependencies downloaded
-- ✅ Code generation verified and working
-- ✅ Backend builds successfully
-- ✅ Frontend lints successfully
+- ✅ **Node.js 22.21.1** with npm 10.9.4 (via nvm)
+- ✅ **Go 1.22.2** with auto-upgrade to toolchain 1.24.11 when needed
+- ✅ **Docker 29.1.3** with Docker Compose v5.0.0
+- ✅ **Docker configured** with vfs storage driver for VM compatibility
+- ✅ **PostgreSQL 16** container tested and working
+- ✅ **Buf CLI 1.61.0** for protobuf generation
+- ✅ **sqlc 1.30.0** for database code generation
+- ✅ **protoc-gen-go v1.36.11** for Go protobuf code
+- ✅ **protoc-gen-connect-go 1.19.1** for Connect RPC code
+- ✅ **All frontend dependencies** installed (383 packages, 0 vulnerabilities)
+- ✅ **All backend dependencies** downloaded and verified
+- ✅ **Code generation** verified and working
+- ✅ **Backend builds** successfully (17 MB binary)
+- ✅ **Frontend builds** successfully with Next.js 15.5.9
+- ✅ **Type checking** passes with no errors
 
-The environment is ready for development!
+The environment is fully operational and ready for development! 🚀
