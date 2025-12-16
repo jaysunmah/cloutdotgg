@@ -16,7 +16,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/cloutdotgg/backend/internal/db"
-	"github.com/cloutdotgg/backend/internal/gen/proto/apiv1/apiv1connect"
+	"github.com/cloutdotgg/backend/internal/gen/apiv1/apiv1connect"
 	"github.com/cloutdotgg/backend/internal/service"
 	"github.com/joho/godotenv"
 )

@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package apiv1;
 
-option go_package = "github.com/cloutdotgg/backend/internal/gen/apiv1;apiv1";
-
 import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/cloutdotgg/backend/internal/gen/apiv1;apiv1";
 
 // Company represents an AI company
 message Company {
@@ -231,29 +231,29 @@ message GetUserLeaderboardResponse {
 service RankingsService {
   // Health check
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
-  
+
   // Stats
   rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
-  
+
   // Categories
   rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
-  
+
   // Companies
   rpc ListCompanies(ListCompaniesRequest) returns (ListCompaniesResponse);
   rpc GetCompany(GetCompanyRequest) returns (GetCompanyResponse);
-  
+
   // Voting
   rpc GetMatchup(GetMatchupRequest) returns (GetMatchupResponse);
   rpc SubmitVote(SubmitVoteRequest) returns (SubmitVoteResponse);
-  
+
   // Leaderboard
   rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
   rpc GetUserLeaderboard(GetUserLeaderboardRequest) returns (GetUserLeaderboardResponse);
-  
+
   // Ratings
   rpc SubmitRating(SubmitRatingRequest) returns (SubmitRatingResponse);
   rpc GetCompanyRatings(GetCompanyRatingsRequest) returns (GetCompanyRatingsResponse);
-  
+
   // Comments
   rpc SubmitComment(SubmitCommentRequest) returns (SubmitCommentResponse);
   rpc GetCompanyComments(GetCompanyCommentsRequest) returns (GetCompanyCommentsResponse);

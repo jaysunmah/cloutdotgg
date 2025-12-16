@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/cloutdotgg/backend/internal/db/sqlc"
-	gen "github.com/cloutdotgg/backend/internal/gen/proto/apiv1"
+	gen "github.com/cloutdotgg/backend/internal/gen/apiv1"
 )
 
 // RankingsService implements the RankingsServiceHandler interface
