@@ -5,7 +5,7 @@ This document summarizes the complete VM environment setup for the CloutGG repos
 ## Overview
 
 This repository is a full-stack web application with:
-- **Backend**: Go 1.22+ with Connect RPC and PostgreSQL
+- **Backend**: Go 1.23+ with Connect RPC and PostgreSQL
 - **Frontend**: Next.js 15 with TypeScript and React 18
 - **Database**: PostgreSQL 16 (via Docker)
 - **API**: Protocol Buffers with Buf CLI for code generation
@@ -14,7 +14,6 @@ This repository is a full-stack web application with:
 ## Pre-installed Tools
 
 The VM came with these tools already installed:
-- **Go 1.22.2** (`/usr/bin/go`)
 - **Node.js v22.21.1** (via NVM)
 - **npm v10.9.4**
 - Git and basic Linux utilities
@@ -25,10 +24,13 @@ The VM came with these tools already installed:
 
 | Tool | Version | Purpose | Installation Method |
 |------|---------|---------|-------------------|
+| **Go** | 1.23.4 | Go programming language | Downloaded from golang.org |
 | **sqlc** | v1.30.0 | Type-safe SQL code generation | `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest` |
 | **protoc-gen-go** | v1.36.11 | Protocol Buffer Go code generation | `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` |
+| **protoc-gen-connect-go** | v1.19.1 | Connect RPC Go code generation | `go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest` |
+| **golang-migrate** | dev | Database migration tool | `go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest` |
 
-**Installation Path**: `/home/ubuntu/go/bin/`
+**Installation Path**: `/home/ubuntu/go/bin/` (added to PATH in `~/.bashrc`)
 
 ### 2. Node.js Frontend Dependencies
 
@@ -40,7 +42,8 @@ The VM came with these tools already installed:
   - React v18.3.1
   - Auth0 v4.14.0
   - Tailwind CSS v3.4.15
-  - Buf/Protobuf tools
+  - Buf/Protobuf tools (@bufbuild/buf v1.61.0)
+  - Connect RPC (@connectrpc/connect v2.1.1)
 
 **Installation Method**: `npm install` in frontend directory
 
@@ -50,20 +53,21 @@ The VM came with these tools already installed:
 |------|---------|---------|-------------------|
 | **Docker Engine** | v29.1.3 | Container runtime | Official Docker install script |
 | **Docker Compose** | v5.0.0 | Multi-container orchestration | Docker CLI plugin |
-| **golang-migrate** | v4.17.0 | Database migration tool | Binary download from GitHub |
+| **Docker Buildx** | v0.30.1 | Docker build plugin | Included with Docker |
 
 **Docker Configuration**:
-- Storage driver: `vfs` (for nested container compatibility)
+- Storage driver: `vfs` (configured to work around overlayfs kernel limitations)
 - Config location: `/etc/docker/daemon.json`
-- Startup script: `/workspace/start-docker.sh`
+- Startup script: `/workspace/start-docker-daemon.sh`
+- Daemon must be started manually (systemd not available in VM environment)
 
 ### 4. Protocol Buffer Tools
 
 | Tool | Version | Purpose | Installation Method |
 |------|---------|---------|-------------------|
-| **Buf CLI** | v1.61.0 | Modern protobuf tooling | Binary download from GitHub |
+| **Buf CLI** | v1.61.0 | Modern protobuf tooling | `go install github.com/bufbuild/buf/cmd/buf@latest` |
 
-**Installation Path**: `/usr/local/bin/buf`
+**Installation Path**: `/home/ubuntu/go/bin/buf`
 
 ## Container Services
 
@@ -75,6 +79,7 @@ The VM came with these tools already installed:
 - **Status**: ✅ Running and Healthy
 - **Database**: cloutgg
 - **Tables Created**: 6 (companies, company_comments, company_ratings, users, votes, schema_migrations)
+- **Seed Data**: 30 companies loaded
 - **Migrations Applied**: 3/3 successful
 
 **Connection String**:
@@ -89,16 +94,16 @@ postgresql://postgres:postgres@localhost:5434/cloutgg?sslmode=disable
 #### Backend Go Code
 - **Location**: `backend/internal/gen/apiv1/`
 - **Files**:
-  - `api.pb.go` (75 KB, ~2,425 lines) - Protocol buffer messages
-  - `apiv1connect/api.connect.go` (28 KB, ~502 lines) - Connect RPC handlers
-- **Generator**: protoc-gen-go v1.36.11 + protoc-gen-connect-go
+  - `api.pb.go` (~75 KB) - Protocol buffer messages
+  - `apiv1connect/api.connect.go` - Connect RPC handlers
+- **Generator**: protoc-gen-go v1.36.11 + protoc-gen-connect-go v1.19.1
 
 #### Frontend TypeScript Code
 - **Location**: `frontend/src/lib/gen/apiv1/`
 - **Files**:
-  - `api_pb.d.ts` + `api_pb.js` (40 KB, ~1,327 lines) - Protocol buffer types
-  - `api_connect.d.ts` + `api_connect.js` (10 KB, ~322 lines) - Connect client
-- **Generator**: protoc-gen-es v2.10.2 + protoc-gen-connect-es v1.6.1
+  - `api_pb.ts` - Protocol buffer types
+  - `api_connect.ts` - Connect client
+- **Generator**: @bufbuild/protoc-gen-es + @bufbuild/protoc-gen-connect-es
 
 #### Backend Database Code
 - **Location**: `backend/internal/db/sqlc/`
@@ -108,77 +113,90 @@ postgresql://postgres:postgres@localhost:5434/cloutgg?sslmode=disable
 ## Issues Resolved
 
 ### 1. Docker Overlay Filesystem Error
-**Problem**: Nested container environment didn't support overlayfs  
-**Solution**: Configured Docker to use `vfs` storage driver  
-**Config**: `/etc/docker/daemon.json`
+**Problem**: Docker failed to start containers with "failed to mount /tmp/containerd-mount: invalid argument" error. The overlayfs storage driver hit kernel limitations with the number of image layers (11 layers in postgres:16-alpine).
+
+**Root Cause**: The VM environment's kernel (6.12.58+) has limitations with overlayfs in nested virtualization scenarios, particularly when handling multi-layer images.
+
+**Solution**: Configured Docker to use `vfs` storage driver instead of overlayfs.
+
+**Implementation**:
+1. Stopped Docker daemon
+2. Created `/etc/docker/daemon.json` with `{"storage-driver": "vfs"}`
+3. Removed `/var/lib/docker` directory
+4. Restarted Docker daemon
+
+**Trade-offs**: VFS is less efficient than overlayfs (no copy-on-write), but it works reliably in constrained environments.
 
 ### 2. Docker Daemon Auto-Start
 **Problem**: systemd not available in container environment  
-**Solution**: Use custom startup script (`/workspace/start-docker.sh`)
+**Solution**: Use custom startup script (`/workspace/start-docker-daemon.sh`)  
+**Usage**: Run `sudo bash /workspace/start-docker-daemon.sh` after VM restart
 
-### 3. Backend Import Path Mismatch
-**Problem**: Code imported from wrong generated path  
-**Solution**: Fixed imports in `backend/main.go` and `backend/internal/service/rankings.go`
-
-### 4. Missing Protobuf Files
-**Problem**: Frontend build failed without generated proto files  
-**Solution**: Run `buf generate proto` before building
+### 3. Go Version Upgrade
+**Problem**: Initial Go 1.22.2 was below recommended 1.23+  
+**Solution**: Upgraded to Go 1.23.4 from official downloads  
+**Benefit**: Access to latest language features and performance improvements
 
 ## Verification Steps Completed
 
 ### Backend
+- ✅ Go 1.23.4 installed and working
 - ✅ Go dependencies downloaded (`go mod download`)
 - ✅ sqlc code generation successful
 - ✅ Protocol buffer generation successful
-- ✅ Backend compiles successfully (`go build -v`)
-- ✅ Go vet passes (`go vet ./...`)
+- ✅ Backend compiles successfully (`go build`)
+- ✅ Backend starts and connects to database
+- ✅ Connect RPC server listening on http://localhost:8080
 
 ### Frontend
-- ✅ npm dependencies installed (383 packages)
+- ✅ npm dependencies installed (383 packages, 0 vulnerabilities)
 - ✅ Protocol buffer generation successful
-- ✅ ESLint passes (`npm run lint`)
 - ✅ TypeScript type checking passes (`npx tsc --noEmit`)
 - ✅ Production build succeeds (`npm run build`)
+- ✅ Frontend prebuild script generates proto files automatically
 
 ### Infrastructure
-- ✅ Docker daemon running
+- ✅ Docker daemon running (with vfs storage driver)
 - ✅ PostgreSQL container healthy
 - ✅ Database initialized with migrations
 - ✅ All 6 tables created
-- ✅ Connection tests successful
+- ✅ 30 companies seeded
+- ✅ Connection tests successful (`pg_isready`)
 
-### Buf CLI
-- ✅ Code generation working (`buf generate proto`)
-- ✅ Linting working (`buf lint proto`)
-- ✅ Formatting working (`buf format proto --write`)
-- ✅ Build working (`buf build proto`)
-- ✅ Dependencies updating (`buf dep update proto`)
+### Code Generation
+- ✅ `make generate` works end-to-end
+- ✅ Buf linting working (`buf lint proto`)
+- ✅ Go backend code generated
+- ✅ TypeScript frontend code generated
+- ✅ sqlc database code generated
 
 ## Quick Start Commands
 
 ### Initial Setup (One-time)
 ```bash
-# Start Docker daemon (if not running)
-bash /workspace/start-docker.sh
+# Start Docker daemon (required after VM restart)
+sudo bash /workspace/start-docker-daemon.sh
 
 # Start PostgreSQL
-docker compose up -d
+sudo docker compose up -d
 
-# Generate all code
+# Generate all code (proto + sqlc)
 make generate
 
-# Install dependencies
-make install
+# Run database migrations
+export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
+make migrate-up
 ```
 
 ### Development Workflow
 ```bash
-# Terminal 1: Start Docker & Database
-docker compose up -d
+# Terminal 1: Ensure Docker daemon is running
+sudo bash /workspace/start-docker-daemon.sh
+sudo docker compose up -d
 
 # Terminal 2: Start Backend
 cd backend
-go run .
+DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable" go run .
 
 # Terminal 3: Start Frontend
 cd frontend
@@ -187,7 +205,7 @@ npm run dev
 
 ### After Modifying Proto Files
 ```bash
-# Regenerate code
+# Regenerate all proto code
 buf generate proto
 
 # Or use Make
@@ -220,8 +238,10 @@ NEXT_PUBLIC_API_URL=http://localhost:8080
 
 | Command | Description |
 |---------|-------------|
-| `make install` | Install all dependencies |
+| `make install` | Install all dependencies (Go modules + npm packages) |
 | `make generate` | Generate all code (proto + sqlc) |
+| `make generate-proto` | Generate only protobuf code |
+| `make generate-sqlc` | Generate only sqlc database code |
 | `make dev` | Start all services |
 | `make db` | Start PostgreSQL container |
 | `make backend` | Run Go backend server |
@@ -229,6 +249,8 @@ NEXT_PUBLIC_API_URL=http://localhost:8080
 | `make test` | Run all tests |
 | `make clean` | Clean up containers and generated code |
 | `make lint-proto` | Lint proto files |
+| `make migrate-up` | Run database migrations |
+| `make migrate-down` | Rollback database migrations |
 
 ## Testing Commands
 
@@ -255,8 +277,8 @@ npm run lint
 ### Backend
 ```bash
 cd backend
-go build -v
-# Creates: backend/backend (17 MB binary)
+go build -o backend .
+# Creates: backend/backend (~18 MB binary)
 ```
 
 ### Frontend
@@ -273,23 +295,33 @@ This repository is configured for deployment on **Railway**:
 - Frontend root directory: `frontend/`
 - Proto code generation happens automatically during builds
 - Each service has its own `buf.gen.yaml` for independent builds
+- Railway uses Nixpacks for builds (doesn't use Docker)
 
 ## Tool Locations
 
 ```
-Go:               /usr/bin/go
-Node.js:          /home/ubuntu/.nvm/versions/node/v22.21.1/bin/node
-npm:              /home/ubuntu/.nvm/versions/node/v22.21.1/bin/npm
-sqlc:             /home/ubuntu/go/bin/sqlc
-protoc-gen-go:    /home/ubuntu/go/bin/protoc-gen-go
-buf:              /usr/local/bin/buf
-docker:           /usr/bin/docker
-migrate:          /usr/local/bin/migrate
+Go:                    /usr/local/go/bin/go
+Node.js:               /home/ubuntu/.nvm/versions/node/v22.21.1/bin/node
+npm:                   /home/ubuntu/.nvm/versions/node/v22.21.1/bin/npm
+sqlc:                  /home/ubuntu/go/bin/sqlc
+protoc-gen-go:         /home/ubuntu/go/bin/protoc-gen-go
+protoc-gen-connect-go: /home/ubuntu/go/bin/protoc-gen-connect-go
+buf:                   /home/ubuntu/go/bin/buf
+docker:                /usr/bin/docker
+migrate:               /home/ubuntu/go/bin/migrate
+```
+
+## PATH Configuration
+
+The following was added to `~/.bashrc` for persistent PATH configuration:
+```bash
+export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
 ```
 
 ## System Information
 
-- **OS**: Linux 6.12.58+ (Ubuntu)
+- **OS**: Ubuntu 24.04.3 LTS (Noble Numbat)
+- **Kernel**: Linux 6.12.58+
 - **Architecture**: x86_64
 - **Shell**: bash
 - **Git Repository**: /workspace
@@ -298,31 +330,60 @@ migrate:          /usr/local/bin/migrate
 
 | Component | Status | Version |
 |-----------|--------|---------|
-| Go | ✅ Ready | 1.22.2 |
+| Go | ✅ Ready | 1.23.4 |
 | Node.js | ✅ Ready | v22.21.1 |
 | npm | ✅ Ready | 10.9.4 |
 | Docker | ✅ Running | v29.1.3 |
 | Docker Compose | ✅ Ready | v5.0.0 |
-| PostgreSQL | ✅ Healthy | 16-alpine |
+| PostgreSQL | ✅ Healthy | 16.11-alpine |
 | Buf CLI | ✅ Ready | v1.61.0 |
 | sqlc | ✅ Ready | v1.30.0 |
 | protoc-gen-go | ✅ Ready | v1.36.11 |
-| golang-migrate | ✅ Ready | v4.17.0 |
-| Backend Build | ✅ Success | 17 MB |
+| protoc-gen-connect-go | ✅ Ready | v1.19.1 |
+| golang-migrate | ✅ Ready | dev |
+| Backend Build | ✅ Success | ~18 MB |
 | Frontend Build | ✅ Success | Optimized |
-| Database | ✅ Initialized | 6 tables |
+| Database | ✅ Initialized | 6 tables, 30 companies |
 | Migrations | ✅ Applied | 3/3 |
 
 ## Notes for Future Use
 
-1. **Docker Daemon**: Must be started manually with `/workspace/start-docker.sh` (systemd not available)
-2. **Generated Code**: Not committed to git - run `make generate` after cloning
-3. **Port 5434**: PostgreSQL runs on 5434 (not 5432) to avoid conflicts
-4. **Build Order**: Proto generation → sqlc generation → Go build
-5. **Frontend Build**: Proto files auto-generate via prebuild script if missing
+1. **Docker Daemon**: Must be started manually with `sudo bash /workspace/start-docker-daemon.sh` after VM restart (systemd not available)
+2. **Docker Storage**: Uses `vfs` driver (not overlayfs) due to kernel limitations - this is less efficient but more compatible
+3. **Generated Code**: Not committed to git - run `make generate` after cloning
+4. **Port 5434**: PostgreSQL runs on 5434 (not 5432) as configured in docker-compose.yml
+5. **Build Order**: Proto generation → sqlc generation → Go build
+6. **Frontend Build**: Proto files auto-generate via prebuild script if missing
+7. **Sudo Required**: Docker commands require `sudo` in this environment
+
+## Docker Storage Driver Details
+
+The VM uses the **vfs** (Virtual File System) storage driver for Docker instead of the default overlayfs. This was necessary due to kernel limitations in the nested virtualization environment.
+
+**VFS Characteristics**:
+- ✅ Maximum compatibility - works in all environments
+- ✅ Simple and reliable - no kernel dependencies
+- ❌ No copy-on-write - full copies of image layers
+- ❌ Higher disk usage than overlayfs
+- ❌ Slower container creation than overlayfs
+
+**Why VFS was needed**: The postgres:16-alpine image has 11 layers, which triggered an "invalid argument" error with overlayfs in this specific kernel environment (6.12.58+). VFS has no such layer limitations.
+
+**Performance Impact**: Acceptable for development environments. For production, use a host with proper overlayfs support.
 
 ---
 
 **Environment Setup Complete!** 🎉
 
-All tools installed, dependencies resolved, code generated, and builds verified. The VM is ready for development, testing, and deployment.
+All tools installed, dependencies resolved, code generated, database initialized, and builds verified. The VM is ready for development, testing, and deployment.
+
+## Summary of Installed Components
+
+- **Go 1.23.4** with 4 development tools (sqlc, protoc-gen-go, protoc-gen-connect-go, migrate)
+- **Node.js v22.21.1** with 383 npm packages
+- **Docker v29.1.3** with vfs storage driver
+- **PostgreSQL 16** running in container with 6 tables and 30 seed companies
+- **Buf CLI v1.61.0** for protocol buffer code generation
+- **All code generated** and verified working
+- **Backend and frontend** build successfully
+- **Database migrations** applied successfully
