@@ -1,124 +1,167 @@
 # Docker Installation Summary
 
-## Installation Status: ✅ SUCCESS
+## Installation Date
+Tuesday, December 16, 2025
 
-Docker and Docker Compose have been successfully installed and configured on the VM.
+## System Information
+- **OS**: Ubuntu 24.04.3 LTS (Noble Numbat)
+- **Kernel**: Linux 6.12.58+
+- **User**: ubuntu
 
-## Versions Installed
+## What Was Installed
 
-- **Docker Version**: 29.1.3 (build f52814d)
-- **Docker Compose Version**: v5.0.0
+### Docker Components
+1. **Docker Engine (docker-ce)**: 5:29.1.3-1~ubuntu.24.04~noble
+2. **Docker CLI (docker-ce-cli)**: 5:29.1.3-1~ubuntu.24.04~noble
+3. **containerd.io**: 2.2.0-2~ubuntu.24.04~noble
+4. **Docker Buildx Plugin**: 0.30.1-1~ubuntu.24.04~noble
+5. **Docker Compose Plugin**: 5.0.0-1~ubuntu.24.04~noble
+6. **Docker CE Rootless Extras**: 5:29.1.3-1~ubuntu.24.04~noble
 
-## Installation Steps Completed
+### Additional Packages
+- iptables (1.8.10-3ubuntu2)
+- nftables (1.0.9-1build1)
+- apparmor (4.0.1really4.0.1-0ubuntu0.24.04.5)
+- slirp4netns (1.2.1-1build2)
+- libslirp0 (4.7.0-1ubuntu3)
+- pigz (2.8-1)
 
-1. ✅ Downloaded and executed official Docker installation script
-2. ✅ Installed Docker CE, Docker CLI, containerd, and Docker Compose plugin
-3. ✅ Configured Docker daemon with VFS storage driver (required for containerized environment)
-4. ✅ Started Docker daemon successfully
-5. ✅ Added `ubuntu` user to the `docker` group
-6. ✅ Verified Docker is working with hello-world container
+## Docker Version
+```
+Docker version 29.1.3, build f52814d
+containerd version: v2.2.0
+```
 
-## Configuration Changes
+## Configuration Changes Made
 
-### Storage Driver
-- **Driver**: VFS (Virtual File System)
-- **Reason**: The default overlay2 storage driver is not compatible with nested containerized environments
+### 1. Docker Storage Driver
+- **Issue**: The default overlay storage driver was incompatible with this VM environment
+- **Solution**: Configured Docker to use VFS storage driver
 - **Configuration File**: `/etc/docker/daemon.json`
-
-### User Permissions
-- The `ubuntu` user has been added to the `docker` group
-- **Note**: A new shell session is required for group membership to take effect without sudo
-- Current workaround: Use `sudo` prefix for docker commands until next login
-
-## Verification Results
-
-### Docker Command Test
-```bash
-$ sudo docker ps
-CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
-```
-✅ Docker daemon is running and responsive
-
-### Container Test
-```bash
-$ sudo docker run --rm hello-world
-Hello from Docker!
-This message shows that your installation appears to be working correctly.
-```
-✅ Container creation, execution, and cleanup successful
-
-### Docker Compose Test
-```bash
-$ sudo docker compose version
-Docker Compose version v5.0.0
-```
-✅ Docker Compose plugin is installed and working
-
-## Known Issues and Warnings
-
-The following warnings appear in the Docker daemon logs but do not affect functionality:
-
-1. **No memory limit support** - Memory cgroups not available in container environment
-2. **No swap limit support** - Swap cgroups not available
-3. **No OOM kill disable support** - OOM killer configuration unavailable
-4. **No cpuset support** - CPU set management unavailable
-5. **Cgroup v1 deprecation warning** - Docker plans to remove cgroup v1 support by May 2029
-
-These warnings are **expected** in containerized/VM environments and do not prevent Docker from functioning correctly.
-
-## Usage Notes
-
-### Current Session (requires sudo)
-```bash
-sudo docker ps
-sudo docker compose up
+```json
+{
+  "storage-driver": "vfs"
+}
 ```
 
-### New Sessions (after re-login, no sudo needed)
+### 2. User Permissions
+- Added user `ubuntu` to the `docker` group
+- This allows the ubuntu user to run Docker commands without sudo (after re-login or using `newgrp docker`)
+
+### 3. Docker Daemon Startup
+- **Note**: This system does not use systemd as the init system
+- Docker daemon must be started manually using: `sudo dockerd &`
+- Created startup script: `/workspace/start-docker.sh` for convenience
+
+## Docker Status
+
+### Current Running Status
+✅ **Docker daemon is running**
+- Process: dockerd (PID varies)
+- containerd is running
+- Storage Driver: vfs
+- Cgroup Driver: cgroupfs
+
+### Verification Tests
+✅ **docker --version**: Works correctly
+✅ **docker ps**: Works correctly  
+✅ **docker run hello-world**: Successfully pulled and ran test container
+
+## How to Use Docker
+
+### Starting Docker
+Since this system doesn't use systemd, use the provided startup script:
 ```bash
-docker ps
-docker compose up
+/workspace/start-docker.sh
 ```
 
-To use Docker without sudo in the current session, you can either:
-1. Log out and log back in, or
-2. Run: `newgrp docker` (applies group membership to current shell)
-
-## Docker Daemon Management
-
-The Docker daemon is currently running in the background. To manage it:
-
+Or start manually:
 ```bash
-# Check if Docker is running
-sudo docker ps
-
-# Stop Docker daemon
-sudo pkill dockerd
-
-# Start Docker daemon
 sudo dockerd > /tmp/dockerd.log 2>&1 &
+```
 
-# View Docker daemon logs
+### Using Docker Commands
+
+#### With sudo (works immediately):
+```bash
+sudo docker ps
+sudo docker images
+sudo docker run hello-world
+```
+
+#### Without sudo (requires group activation):
+```bash
+newgrp docker
+docker ps
+docker images
+```
+
+### Stopping Docker
+```bash
+sudo pkill dockerd
+sudo pkill containerd
+```
+
+## Known Limitations
+
+1. **Storage Driver**: Using VFS storage driver instead of overlay
+   - VFS is slower and uses more disk space
+   - But it's more compatible with various VM/container environments
+   - Each container gets a full copy of the image layers
+
+2. **No systemd Integration**: 
+   - Docker won't start automatically on boot
+   - Must use manual startup script or commands
+
+3. **Cgroup Limitations**:
+   - No memory limit support
+   - No swap limit support  
+   - No OOM kill disable support
+   - No cpuset support
+   - Using deprecated cgroup v1 (to be removed by May 2029)
+
+## Files Created
+
+1. `/etc/docker/daemon.json` - Docker daemon configuration
+2. `/workspace/start-docker.sh` - Convenient Docker startup script
+3. `/tmp/dockerd.log` - Docker daemon logs
+
+## Verification Commands
+
+Check if Docker is running:
+```bash
+ps aux | grep dockerd
+```
+
+View Docker info:
+```bash
+sudo docker info
+```
+
+Check Docker logs:
+```bash
 tail -f /tmp/dockerd.log
 ```
 
+## Success Criteria ✅
+
+All installation requirements have been met:
+
+- ✅ Docker installed using official Docker repository
+- ✅ Docker daemon is running
+- ✅ `docker --version` works (v29.1.3)
+- ✅ `docker ps` works successfully
+- ✅ User added to docker group
+- ✅ Permissions configured correctly
+- ✅ Successfully ran hello-world container
+
 ## Next Steps
 
-You can now use Docker and Docker Compose to:
-- Build and run containers
-- Use docker-compose.yml files for multi-container applications
-- Pull images from Docker Hub
-- Create custom Docker images
+Docker is now fully functional. You can:
 
-Example:
-```bash
-sudo docker compose up -d
-```
+1. Pull and run containers: `sudo docker run -d nginx`
+2. Build custom images using Dockerfiles
+3. Use docker-compose for multi-container applications
+4. Set up your development environment in containers
 
-## Summary
-
-✅ **Docker 29.1.3** installed successfully  
-✅ **Docker Compose v5.0.0** installed successfully  
-✅ Both tools are functional and verified  
-✅ User permissions configured (effective after re-login)  
-⚠️ Some cgroup features unavailable (expected in containerized environment)  
+For more information, visit: https://docs.docker.com/

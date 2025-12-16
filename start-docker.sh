@@ -1,27 +1,38 @@
 #!/bin/bash
-# Start Docker daemon
-# VFS storage driver is configured in /etc/docker/daemon.json
-# This is needed in this VM environment due to overlay filesystem limitations
 
-# Check if Docker daemon is already running
-if sudo docker info > /dev/null 2>&1; then
+# Docker startup script for non-systemd environments
+# This script starts the Docker daemon in the background
+
+echo "Starting Docker daemon..."
+
+# Check if Docker is already running
+if pgrep -x "dockerd" > /dev/null; then
     echo "Docker is already running"
     exit 0
 fi
 
-# Start Docker daemon in background (configuration loaded from /etc/docker/daemon.json)
-echo "Starting Docker daemon..."
-sudo dockerd > /dev/null 2>&1 &
+# Clean up any stale runtime directories
+sudo rm -rf /var/run/docker /var/run/containerd 2>/dev/null
 
-# Wait for Docker to be ready
-echo "Waiting for Docker to be ready..."
-for i in {1..30}; do
-    if sudo docker info > /dev/null 2>&1; then
-        echo "Docker is ready!"
-        exit 0
-    fi
-    sleep 1
-done
+# Start Docker daemon in background
+sudo dockerd > /tmp/dockerd.log 2>&1 &
 
-echo "Error: Docker failed to start"
-exit 1
+# Wait for Docker to start
+echo "Waiting for Docker to initialize..."
+sleep 5
+
+# Check if Docker started successfully
+if pgrep -x "dockerd" > /dev/null; then
+    echo "Docker started successfully!"
+    echo "Docker version: $(docker --version)"
+    echo ""
+    echo "You can now use Docker commands with sudo, e.g.:"
+    echo "  sudo docker ps"
+    echo "  sudo docker run hello-world"
+    echo ""
+    echo "Or use Docker without sudo (requires re-login or newgrp):"
+    echo "  newgrp docker"
+else
+    echo "Failed to start Docker. Check logs at /tmp/dockerd.log"
+    exit 1
+fi
