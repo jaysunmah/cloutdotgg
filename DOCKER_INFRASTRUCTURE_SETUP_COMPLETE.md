@@ -1,291 +1,348 @@
-# Docker & Infrastructure Setup Complete
+# Docker and Infrastructure Setup - Complete Summary
 
-**Date:** December 16, 2025  
-**System:** Ubuntu 24.04.3 LTS (Noble Numbat)  
-**Architecture:** x86_64
+## Date: December 16, 2025
 
-## Summary
-
-Successfully installed and configured Docker on the system, started the Docker daemon with fuse-overlayfs storage driver (for nested Docker compatibility), and deployed the PostgreSQL database container. The database is fully operational and accessible.
+## Overview
+Successfully set up Docker, Docker Compose, and PostgreSQL infrastructure for the clout.gg repository.
 
 ---
 
 ## What Was Already Installed
 
-- **Operating System:** Ubuntu 24.04.3 LTS
-- **Prerequisites:** 
-  - `ca-certificates` (already present)
-  - `curl` (already present)
-- **No Docker components were previously installed**
+### Pre-existing
+- **Operating System**: Linux 6.12.58+ (Ubuntu)
+- **Shell**: bash
+- **Git**: Already configured at `/workspace`
+- **Scripts**: 
+  - `get-docker.sh` (official Docker installation script)
+  - `start-docker.sh` (custom Docker daemon starter)
+  - `start-docker-daemon.sh` (alternative daemon starter)
+
+### Not Previously Installed
+- Docker Engine
+- Docker Compose
+- PostgreSQL container
+- golang-migrate tool
 
 ---
 
-## What Was Installed/Configured
+## What Was Installed
 
-### 1. Docker Installation
+### 1. Docker Engine (v29.1.3)
+- **Installation Method**: Used official Docker installation script (`get-docker.sh`)
+- **Command**: `sudo sh /workspace/get-docker.sh`
+- **Components Installed**:
+  - docker-ce (Community Edition)
+  - docker-ce-cli
+  - containerd.io
+  - docker-compose-plugin (v5.0.0)
+  - docker-buildx-plugin (v0.30.1)
+  - docker-model-plugin (v1.0.5)
+  - docker-ce-rootless-extras
 
-Installed Docker using the official Docker repository method (best practice for Ubuntu):
+### 2. Docker Compose
+- **Version**: v5.0.0
+- **Installed as**: Docker CLI plugin
+- **Location**: `/usr/libexec/docker/cli-plugins/docker-compose`
 
-- **Docker Engine:** Version 29.1.3 (build f52814d)
-- **Docker Compose Plugin:** Version 5.0.0
-- **Docker Buildx Plugin:** Version 0.30.1
-- **containerd.io:** Version 2.2.0
-- **Additional tools:** fuse-overlayfs, iptables, nftables
+### 3. PostgreSQL Container
+- **Image**: postgres:16-alpine
+- **Container Name**: cloutgg-postgres
+- **Port Mapping**: 5434:5432 (host:container)
+- **Credentials**:
+  - User: postgres
+  - Password: postgres
+  - Database: cloutgg
 
-**Installation Method:**
-1. Added Docker's official GPG key to `/etc/apt/keyrings/docker.asc`
-2. Added Docker repository to `/etc/apt/sources.list.d/docker.list`
-3. Installed Docker CE with compose and buildx plugins
+### 4. golang-migrate Tool
+- **Version**: 4.17.0
+- **Installation Method**: Direct binary download from GitHub releases
+- **Location**: `/usr/local/bin/migrate`
+- **Source**: https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz
 
-### 2. Docker Daemon Configuration
+---
 
-**Storage Driver:** Configured to use `fuse-overlayfs` instead of standard overlayfs
+## Docker Daemon Configuration
 
-**Reason:** The system is running in a nested virtualization environment without full systemd support. Standard overlayfs fails with "invalid argument" errors when mounting overlay filesystems. Fuse-overlayfs provides a userspace alternative that works reliably in such environments.
+### Initial Issue
+Docker daemon failed to start containers with default `overlayfs` storage driver due to nested container environment limitations:
+```
+Error: failed to mount: invalid argument (overlay filesystem issue)
+```
 
-**Configuration File:** `/etc/docker/daemon.json`
+### Resolution
+Configured Docker daemon to use `vfs` storage driver for compatibility:
+
+**Configuration File**: `/etc/docker/daemon.json`
 ```json
 {
-  "storage-driver": "fuse-overlayfs",
-  "storage-opts": [
-    "overlay.mount_program=/usr/bin/fuse-overlayfs"
-  ]
+  "storage-driver": "vfs"
 }
 ```
 
-**Daemon Startup:** 
-- Since systemd is not available (PID 1), Docker daemon is started manually using: `sudo dockerd`
-- Daemon process running with PID: 5949 (as of setup completion)
-- Logs available at: `/tmp/dockerd.log`
-
-### 3. User Configuration
-
-- Added current user to `docker` group for Docker permission management
-- Command: `sudo usermod -aG docker $USER`
-
-### 4. PostgreSQL Database Container
-
-**Container Details:**
-- **Container Name:** `cloutgg-postgres`
-- **Image:** `postgres:16-alpine`
-- **Status:** Up and running (healthy)
-- **Health Status:** ✅ Healthy
-- **PostgreSQL Version:** 16.11 on x86_64-pc-linux-musl
-
-**Network Configuration:**
-- **Host Port:** 5434
-- **Container Port:** 5432
-- **Accessible on:** 
-  - IPv4: `0.0.0.0:5434`
-  - IPv6: `[::]:5434`
-
-**Database Configuration:**
-- **Database Name:** `cloutgg` (created successfully)
-- **User:** `postgres`
-- **Password:** `postgres`
-- **Default databases:** postgres, template0, template1, cloutgg
-
-**Storage:**
-- **Volume:** `workspace_postgres_data`
-- **Migrations mounted:** `/workspace/backend/db/migrations` → `/docker-entrypoint-initdb.d`
-
-**Healthcheck:**
-- **Command:** `pg_isready -U postgres`
-- **Interval:** 5 seconds
-- **Timeout:** 5 seconds
-- **Retries:** 5
-- **Current Status:** Passing ✅
+**Note**: VFS storage driver is less performant but works reliably in nested container environments.
 
 ---
 
-## Issues Encountered & Resolutions
+## Docker Daemon Status and Startup
+
+### Initial State
+- Docker was not installed
+- No Docker daemon running
+
+### Startup Process
+1. **Installation**: Ran `sudo sh /workspace/get-docker.sh`
+   - systemd attempted but failed to auto-start (expected in container environment)
+   
+2. **Manual Daemon Start**: Used `bash /workspace/start-docker.sh`
+   - Script checks if dockerd is already running
+   - Cleans up stale runtime directories
+   - Starts dockerd in background
+   - Waits 5 seconds for initialization
+   - Verifies successful startup
+
+3. **Configuration Change**: After storage driver issues
+   - Stopped daemon: `sudo pkill dockerd`
+   - Created `/etc/docker/daemon.json` with vfs driver
+   - Restarted: `sudo dockerd > /tmp/dockerd.log 2>&1 &`
+
+### Current Status
+- **Daemon Running**: ✅ Yes
+- **Process**: dockerd running in background
+- **Logs**: Available at `/tmp/dockerd.log`
+- **Storage Driver**: vfs
+- **Cgroup Driver**: cgroupfs
+- **Cgroup Version**: 1
+
+---
+
+## PostgreSQL Container Status
+
+### Container Details
+- **Status**: Running and Healthy ✅
+- **Container ID**: ed56259c3fad
+- **Health Check**: Passing
+  - Command: `pg_isready -U postgres`
+  - Interval: 5s
+  - Timeout: 5s
+  - Retries: 5
+
+### Network
+- **Port**: 5434 (host) → 5432 (container)
+- **Connection String**: `postgresql://postgres:postgres@localhost:5434/cloutgg?sslmode=disable`
+
+### Volume
+- **Name**: workspace_postgres_data
+- **Mount Point**: `/var/lib/postgresql/data` (in container)
+- **Purpose**: Persistent data storage
+
+### Database Initialization
+- Migrations automatically run from `/workspace/backend/db/migrations/`
+- **Tables Created**:
+  1. `companies` - Company information
+  2. `company_comments` - User comments on companies
+  3. `company_ratings` - Company ratings
+  4. `users` - User accounts
+  5. `votes` - User votes
+  6. `schema_migrations` - Migration tracking
+
+### Migrations Applied
+1. **000001_init** - Initial schema (65.96ms)
+2. **000002_add_user_id_to_votes** - Added user_id to votes table (76.44ms)
+3. **000003_seed_companies** - Seeded company data (131.24ms)
+
+---
+
+## Issues Encountered and Resolutions
 
 ### Issue 1: Docker Not Installed
-**Problem:** Docker was not present on the system  
-**Resolution:** Installed Docker using official repository method following Ubuntu best practices
+**Problem**: `docker: command not found`
 
-### Issue 2: No systemd Support
-**Problem:** System running without systemd as init (PID 1), cannot use `systemctl` to manage Docker daemon  
-**Resolution:** Started Docker daemon manually with `sudo dockerd` in background mode
+**Resolution**: 
+- Executed official Docker installation script: `sudo sh /workspace/get-docker.sh`
+- Successfully installed Docker Engine v29.1.3 and all components
 
-### Issue 3: Overlayfs Mount Failures
-**Problem:** Initial container creation failed with error:
+### Issue 2: Docker Daemon Not Running
+**Problem**: systemd couldn't start Docker automatically in container environment
+
+**Resolution**:
+- Used custom startup script: `bash /workspace/start-docker.sh`
+- Script starts dockerd manually in background
+- Verified with `docker info` and `docker ps`
+
+### Issue 3: Overlay Filesystem Error
+**Problem**: 
 ```
-failed to mount /tmp/containerd-mount*: invalid argument
+Error: failed to mount /tmp/containerd-mount...: 
+mount source: "overlay", target: "...", fstype: overlay, 
+flags: 0, data: "...", err: invalid argument
 ```
-This is a common issue in Docker-in-Docker or nested virtualization scenarios where overlay filesystems cannot nest properly.
 
-**Resolution:** 
-1. Installed `fuse-overlayfs` package
-2. Configured Docker daemon to use fuse-overlayfs storage driver
-3. Cleaned up old Docker data directory
-4. Restarted daemon with new configuration
-5. Successfully created and started containers
+**Root Cause**: Nested container environment doesn't support overlayfs properly
+
+**Resolution**:
+1. Created `/etc/docker/daemon.json` with `"storage-driver": "vfs"`
+2. Stopped Docker daemon: `sudo pkill dockerd`
+3. Restarted with new config: `sudo dockerd > /tmp/dockerd.log 2>&1 &`
+4. Successfully started PostgreSQL container with vfs driver
+
+### Issue 4: golang-migrate Not in PATH
+**Problem**: `migrate: command not found` even after installation
+
+**Resolution**:
+- Binary correctly installed to `/usr/local/bin/migrate`
+- PATH issue in specific shell sessions
+- Workaround: Use full path `/usr/local/bin/migrate` or `export PATH=$PATH:/usr/local/bin`
+- Verified installation: `migrate -version` returns 4.17.0
 
 ---
 
-## Current Status
+## Verification Steps Performed
 
-### Docker Service
-✅ **Status:** Running  
-✅ **Version:** 29.1.3  
-✅ **Storage Driver:** fuse-overlayfs  
-✅ **Compose Version:** v5.0.0  
-✅ **Daemon PID:** 5949  
-
-### PostgreSQL Container
-✅ **Status:** Up 46 seconds (healthy)  
-✅ **Container ID:** 3a9d80e337f4  
-✅ **Image:** postgres:16-alpine  
-✅ **Network:** workspace_default (created)  
-✅ **Volume:** workspace_postgres_data (created)  
-✅ **Port Mapping:** 0.0.0.0:5434 → 5432  
-
-### Database Accessibility
-✅ **Host Connection Test:** Successfully connected from host to localhost:5434  
-✅ **Internal Connection:** pg_isready reports accepting connections  
-✅ **Database Created:** `cloutgg` database exists and is accessible  
-✅ **Tables:** None yet (migrations not run - expected state)  
-
-### Resource Usage
-- **CPU:** 0.03%
-- **Memory:** Minimal usage
-- **Network I/O:** 4.01kB in / 2.68kB out
-- **PIDs:** 6 processes
-
----
-
-## Verification Commands
-
-### Check Docker Version
+### 1. Docker Installation
 ```bash
 docker --version
 # Output: Docker version 29.1.3, build f52814d
 ```
 
-### Check Docker Daemon
+### 2. Docker Daemon Status
 ```bash
-sudo docker info | grep -A5 "Storage Driver"
-# Shows: fuse-overlayfs
+sudo docker info
+# Verified: Containers: 1, Images: 1, Storage Driver: vfs
 ```
 
-### Check Container Status
+### 3. Docker Compose
+```bash
+docker compose version
+# Output: Docker Compose version v5.0.0
+```
+
+### 4. Container Status
 ```bash
 sudo docker ps
-# Shows: cloutgg-postgres running and healthy
+# Verified: cloutgg-postgres running and healthy
 ```
 
-### Test Database Connection
-```bash
-PGPASSWORD=postgres psql -h localhost -p 5434 -U postgres -d cloutgg -c 'SELECT version();'
-# Successfully connects and returns PostgreSQL 16.11
-```
-
-### Check Container Health
+### 5. PostgreSQL Health
 ```bash
 sudo docker inspect cloutgg-postgres --format='{{.State.Health.Status}}'
 # Output: healthy
+
+sudo docker exec cloutgg-postgres pg_isready -U postgres
+# Output: /var/run/postgresql:5432 - accepting connections
 ```
 
----
-
-## Database Schema Information
-
-The database has migration files ready to create the following tables:
-- `users` - User account information
-- `companies` - AI companies with ELO ratings
-- `votes` - Head-to-head comparison votes
-- `company_ratings` - Category-based ratings
-- `company_comments` - User reviews and comments
-
-**Note:** These tables will be created when migrations are run by the backend service.
-
----
-
-## Next Steps
-
-1. ✅ Docker installed and configured
-2. ✅ Docker daemon running with fuse-overlayfs
-3. ✅ PostgreSQL container deployed and healthy
-4. ✅ Database accessible on port 5434
-5. ✅ `cloutgg` database created
-
-**Ready for:**
-- Backend service to connect and run migrations
-- Frontend service to start
-- Application deployment
-
----
-
-## Important Notes
-
-1. **Docker Daemon Persistence:** Since systemd is not available, the Docker daemon is running as a manual background process. If the system reboots, you'll need to restart it with:
-   ```bash
-   sudo dockerd > /tmp/dockerd.log 2>&1 &
-   ```
-   Or use the provided script:
-   ```bash
-   /workspace/start-docker.sh
-   ```
-
-2. **Sudo Required:** Most docker commands require `sudo` unless you log out and back in (or use `newgrp docker`) for group membership to take effect.
-
-3. **Storage Driver:** The fuse-overlayfs driver is specifically configured for this nested Docker environment. Don't remove or change this configuration.
-
-4. **Database Persistence:** Data is stored in the `workspace_postgres_data` Docker volume and will persist across container restarts.
-
-5. **Port 5434:** The database is exposed on port 5434 (not the default 5432) as specified in `docker-compose.yml`. Make sure your backend configuration uses this port.
-
----
-
-## Configuration Files
-
-### /etc/docker/daemon.json
-```json
-{
-  "storage-driver": "fuse-overlayfs",
-  "storage-opts": [
-    "overlay.mount_program=/usr/bin/fuse-overlayfs"
-  ]
-}
-```
-
-### /workspace/docker-compose.yml
-- PostgreSQL 16 Alpine
-- Port mapping: 5434:5432
-- Database: cloutgg
-- Credentials: postgres/postgres
-- Health checks configured
-
----
-
-## Troubleshooting
-
-### If Docker daemon stops:
+### 6. Database Tables
 ```bash
-sudo pkill dockerd
-sudo rm -rf /var/run/docker /var/run/containerd
-sudo dockerd > /tmp/dockerd.log 2>&1 &
+sudo docker exec cloutgg-postgres psql -U postgres -d cloutgg -c "\dt"
+# Verified: 6 tables created (companies, users, votes, etc.)
 ```
 
-### If container stops:
+### 7. golang-migrate
 ```bash
+/usr/local/bin/migrate -version
+# Output: 4.17.0
+```
+
+### 8. Database Migrations
+```bash
+migrate -path db/migrations -database "postgresql://..." up
+# Verified: 3 migrations applied successfully
+```
+
+---
+
+## Current System State
+
+### Docker Environment
+- ✅ Docker Engine: v29.1.3 (running)
+- ✅ Docker Compose: v5.0.0 (available)
+- ✅ Storage Driver: vfs (configured)
+- ✅ Daemon Logs: /tmp/dockerd.log
+
+### Containers
+- ✅ PostgreSQL: Running (healthy)
+  - Port: 5434:5432
+  - Image: postgres:16-alpine
+  - Database: cloutgg initialized
+
+### Tools
+- ✅ golang-migrate: v4.17.0 (installed at /usr/local/bin/migrate)
+
+### Database
+- ✅ Schema: Fully migrated (3 migrations)
+- ✅ Tables: 6 tables created
+- ✅ Data: Company seed data loaded
+- ✅ Connection: Accepting connections on port 5434
+
+---
+
+## Next Steps for Development
+
+### To Start Services
+```bash
+# Docker daemon (if not running)
+bash /workspace/start-docker.sh
+
+# Docker Compose services
 cd /workspace
 sudo docker compose up -d
 ```
 
-### View container logs:
+### To Run Additional Migrations
 ```bash
-sudo docker logs cloutgg-postgres
+cd /workspace/backend
+/usr/local/bin/migrate -path db/migrations \
+  -database "postgresql://postgres:postgres@localhost:5434/cloutgg?sslmode=disable" \
+  up
 ```
 
-### View daemon logs:
+### To Connect to PostgreSQL
 ```bash
+# From host
+sudo docker exec -it cloutgg-postgres psql -U postgres -d cloutgg
+
+# From application
+Connection String: postgresql://postgres:postgres@localhost:5434/cloutgg?sslmode=disable
+```
+
+### To View Logs
+```bash
+# Docker daemon logs
 tail -f /tmp/dockerd.log
+
+# PostgreSQL logs
+sudo docker logs -f cloutgg-postgres
+
+# All container logs
+sudo docker compose logs -f
 ```
 
 ---
 
-**Setup completed successfully!** 🎉
+## Configuration Files Modified/Created
 
-The Docker infrastructure is fully operational and ready for application deployment.
+1. `/etc/docker/daemon.json` - Docker daemon configuration (storage driver)
+2. `/workspace/docker-compose.yml` - Already existed, used for setup
+
+---
+
+## Performance Notes
+
+- **Storage Driver**: VFS is slower than overlayfs but necessary for nested containers
+- **Trade-off**: Stability over performance in this environment
+- **Impact**: Acceptable for development; production should use native Docker with overlayfs
+
+---
+
+## Summary
+
+✅ **Docker Engine**: Installed and running (v29.1.3)  
+✅ **Docker Compose**: Installed and functional (v5.0.0)  
+✅ **Docker Daemon**: Running with vfs storage driver  
+✅ **PostgreSQL**: Container running, healthy, accepting connections  
+✅ **Database**: Schema migrated, tables created, seed data loaded  
+✅ **golang-migrate**: Installed and operational (v4.17.0)  
+✅ **Verification**: All systems tested and confirmed working  
+
+The infrastructure is now fully set up and ready for development! 🚀
