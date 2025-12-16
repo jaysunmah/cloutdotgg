@@ -1,159 +1,194 @@
 # Docker and Buf CLI Setup Summary
 
-Date: December 16, 2025
+## Setup Completion Status: ✅ SUCCESS
 
-## Installation Summary
+This document summarizes the Docker and Buf CLI installation for the CloutGG repository.
 
-### Docker Installation ✅
+## 1. Docker Installation
 
-**Version Installed:** Docker version 29.1.3, build f52814d
+### Docker Version
+- **Docker Engine**: 28.2.2 (build 28.2.2-0ubuntu1~24.04.1)
+- **Installation Method**: APT package manager (`docker.io`)
 
-**Installation Method:** 
-- Used the official Docker installation script (`get-docker.sh`) provided in the repository
-- Script automatically installed:
-  - docker-ce (Docker Engine)
-  - docker-ce-cli (Docker CLI)
-  - containerd.io (Container runtime)
-  - docker-compose-plugin (Docker Compose v2)
-  - docker-buildx-plugin (Build extensions)
-  - docker-ce-rootless-extras (Rootless mode support)
-  - docker-model-plugin (Model plugin)
+### Docker Compose Version
+- **Docker Compose**: 2.37.1+ds1-0ubuntu2~24.04.1
+- **Installation Method**: APT package manager (`docker-compose-v2`)
 
-**Daemon Status:** ✅ Running
-- Started using the `start-docker.sh` script
-- Using VFS storage driver (required for this VM environment due to overlay filesystem limitations)
-- Daemon is accessible and responding to commands
-
-**Docker Compose:** ✅ Working
-- Docker Compose plugin (v2) installed as part of Docker installation
-- Successfully tested with docker-compose.yml
-
-### Buf CLI Installation ✅
-
-**Version Installed:** 1.61.0
-
-**Installation Method:**
-- Downloaded latest release directly from GitHub (https://github.com/bufbuild/buf/releases)
-- Installed to `/usr/local/bin/buf`
-- Made executable with appropriate permissions
-
-**Status:** ✅ Working
-- Buf CLI is accessible from command line
-- Ready for protobuf code generation
-
-## Testing Results
-
-### Docker Tests ✅
-
-1. **Docker Daemon Test:**
-   ```bash
-   sudo docker ps
-   ```
-   Result: ✅ Success - Daemon responding correctly
-
-2. **Image Pull Test:**
-   ```bash
-   sudo docker pull postgres:16-alpine
-   ```
-   Result: ✅ Success - Image pulled successfully (digest: sha256:a5074487380d4e686036ce61ed6f2d363939ae9a0c40123d1a9e3bb3a5f344b4)
-
-3. **Docker Compose Test:**
-   ```bash
-   sudo docker compose up -d
-   ```
-   Result: ✅ Success - PostgreSQL container started and running
-
-### PostgreSQL Container Status ✅
-
-- **Container Name:** cloutgg-postgres
-- **Status:** Up and healthy
-- **Ports:** 0.0.0.0:5434->5432/tcp (mapped to host port 5434)
-- **Health Check:** Passing (pg_isready check every 5s)
-- **Database:** cloutgg
-- **User:** postgres
-- **PostgreSQL Version:** 16.11 on x86_64-pc-linux-musl
-
-### Database Connection Test ✅
-
-Successfully connected to the database and verified:
-```sql
-SELECT version();
+### Installation Commands Used
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-v2
 ```
-Result: PostgreSQL 16.11 running correctly
 
-## Important Notes
+### Docker Daemon Status
+- **Status**: ✅ Running
+- **Startup Method**: Custom script (`/workspace/start-docker-daemon.sh`)
+- **Log Location**: `/tmp/dockerd.log`
 
-### Docker Daemon
+The Docker daemon was started successfully using the existing startup script in the workspace. The script handles non-systemd environments properly.
 
-1. **Storage Driver:** The Docker daemon is running with VFS storage driver
-   - This is necessary in the VM environment due to overlay filesystem limitations
-   - The `start-docker.sh` script handles this automatically
+## 2. Buf CLI Installation
 
-2. **Permissions:** Docker commands require `sudo` or the user needs to be added to the `docker` group
+### Buf CLI Version
+- **Version**: 1.47.2
+- **Installation Method**: Direct binary download from GitHub releases
 
-3. **Systemd:** The automatic systemd service enablement failed during installation
-   - This is expected in container/VM environments without full systemd support
-   - The daemon must be started manually using the provided scripts
-   - The `start-docker.sh` script checks if Docker is already running before attempting to start
+### Installation Commands Used
+```bash
+curl -sSL "https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64" -o /tmp/buf
+sudo mv /tmp/buf /usr/local/bin/buf
+sudo chmod +x /usr/local/bin/buf
+```
 
-### Docker Compose
+### Verification
+```bash
+$ buf --version
+1.47.2
+```
 
-- The docker-compose.yml file includes a `version` field which is now obsolete in Docker Compose v2
-- This generates a warning but doesn't affect functionality
-- Consider removing the `version: '3.8'` line to avoid confusion
+## 3. PostgreSQL Container Setup
 
-### Scripts Available
+### Docker Compose Configuration
+The PostgreSQL container was started using the existing `docker-compose.yml` configuration:
 
-Three helper scripts are available in the repository:
+- **Image**: postgres:16-alpine
+- **Container Name**: cloutgg-postgres
+- **Database**: cloutgg
+- **User**: postgres
+- **Password**: postgres
+- **Port Mapping**: 5434:5432 (host:container)
+- **Volume**: postgres_data (persistent storage)
 
-1. **get-docker.sh** - Official Docker installation script
-2. **start-docker-daemon.sh** - Simple daemon start script
-3. **start-docker.sh** - Recommended daemon start script with VFS storage driver
+### Container Status
+- **Status**: ✅ Running and Healthy
+- **Health Check**: Passing (accepts connections on port 5432)
+- **Container ID**: 29019c3fc0bc
 
-The `start-docker.sh` script is recommended as it:
-- Uses the VFS storage driver (required for this environment)
-- Checks if Docker is already running
-- Waits for Docker to be ready before exiting
-- Includes proper error handling
+### Startup Command
+```bash
+cd /workspace && docker compose up -d
+```
 
-## Dependencies Status
+### Health Check Results
+```json
+{
+  "Status": "healthy",
+  "FailingStreak": 0,
+  "Log": [
+    {
+      "Start": "2025-12-16T22:45:12.332140115Z",
+      "End": "2025-12-16T22:45:12.393891819Z",
+      "ExitCode": 0,
+      "Output": "/var/run/postgresql:5432 - accepting connections\n"
+    }
+  ]
+}
+```
 
-All required dependencies are now installed and working:
+### PostgreSQL Logs (Last Lines)
+```
+PostgreSQL init process complete; ready for start up.
 
-- ✅ Docker Engine (29.1.3)
-- ✅ Docker CLI (29.1.3)
-- ✅ Docker Compose (v2, plugin)
-- ✅ Buf CLI (1.61.0)
-- ✅ PostgreSQL container (16-alpine)
+2025-12-16 22:45:08.621 UTC [1] LOG:  starting PostgreSQL 16.11 on x86_64-pc-linux-musl
+2025-12-16 22:45:08.621 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2025-12-16 22:45:08.621 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2025-12-16 22:45:08.622 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2025-12-16 22:45:08.634 UTC [1] LOG:  database system is ready to accept connections
+```
 
-## Next Steps
+### Database Status
+- The PostgreSQL container is running and accepting connections
+- The `cloutgg` database has been created
+- No tables exist yet (migrations need to be run separately)
 
-1. **Protobuf Code Generation:** 
-   - Run `buf generate` to generate code from proto files
-   - The project has buf.gen.yaml files in both backend and frontend directories
+## 4. Issues Encountered
 
-2. **Backend Setup:**
-   - Database migrations can be run against the PostgreSQL container
-   - Container is accessible on `localhost:5434`
+### Issue 1: Systemd Not Available
+- **Problem**: The system doesn't use systemd as the init system
+- **Solution**: Used the custom Docker daemon startup script (`start-docker-daemon.sh`) included in the workspace
 
-3. **Add User to Docker Group (Optional):**
-   ```bash
-   sudo usermod -aG docker $USER
-   ```
-   Then log out and back in to run Docker without sudo
+### Issue 2: Docker Compose Version Warning
+- **Warning**: `the attribute 'version' is obsolete, it will be ignored`
+- **Impact**: No functional impact - Docker Compose still works correctly
+- **Note**: The `version: '3.8'` line in `docker-compose.yml` can be removed in future updates
 
-## Issues Encountered
+## 5. Verification Commands
 
-### Issue 1: Systemd Service Auto-start
-**Problem:** Docker service couldn't be enabled automatically via systemd
-**Solution:** Use the provided `start-docker.sh` script to start the daemon manually
-**Status:** ✅ Resolved
+### Check Docker Status
+```bash
+docker --version
+docker compose version
+docker ps
+```
 
-### Issue 2: Storage Driver Requirements  
-**Problem:** Default overlay2 storage driver doesn't work in this VM environment
-**Solution:** The `start-docker.sh` script uses VFS storage driver
-**Status:** ✅ Resolved
+### Check Buf CLI
+```bash
+buf --version
+```
 
-## Conclusion
+### Check PostgreSQL Container
+```bash
+docker ps -a
+docker logs cloutgg-postgres
+docker inspect cloutgg-postgres --format='{{json .State.Health}}'
+```
 
-Both Docker and Buf CLI have been successfully installed and verified. All tests passed, and the PostgreSQL container is running correctly. The environment is now ready for development work including protobuf code generation and database operations.
+### Test Database Connection
+```bash
+docker exec cloutgg-postgres psql -U postgres -d cloutgg -c '\dt'
+```
+
+## 6. Next Steps
+
+1. **Run Database Migrations**: Apply migrations from `backend/db/migrations/`
+2. **Configure Backend**: Set up environment variables for database connection
+3. **Test Protobuf Generation**: Use Buf CLI to generate code from proto files
+4. **Start Backend Service**: Run the Go backend server
+5. **Start Frontend**: Launch the Next.js frontend application
+
+## 7. Quick Reference
+
+### Useful Docker Commands
+```bash
+# View running containers
+docker ps
+
+# View all containers
+docker ps -a
+
+# View container logs
+docker logs cloutgg-postgres
+
+# Stop services
+docker compose down
+
+# Start services
+docker compose up -d
+
+# Restart services
+docker compose restart
+```
+
+### Useful Buf Commands
+```bash
+# Generate code from proto files
+buf generate
+
+# Lint proto files
+buf lint
+
+# Format proto files
+buf format -w
+```
+
+## Summary
+
+✅ **All setup tasks completed successfully!**
+
+- Docker Engine 28.2.2 installed and running
+- Docker Compose 2.37.1 installed and functional
+- Buf CLI 1.47.2 installed and verified
+- PostgreSQL 16.11 container running and healthy
+- Database accepting connections on port 5434
+
+The CloutGG development environment is now ready for backend and frontend development.
