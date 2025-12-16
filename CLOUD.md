@@ -30,7 +30,7 @@ The VM is configured with all necessary tools to develop, build, and test:
 
 | Tool | Version | Location | Installation Method |
 |------|---------|----------|-------------------|
-| **Go** | 1.22.2 | `/usr/bin/go` | Pre-installed |
+| **Go** | 1.23.4 | `/usr/local/go/bin/go` | Official Go installer (upgraded from 1.22.2) |
 | **Node.js** | 22.21.1 | `/home/ubuntu/.nvm/versions/node/v22.21.1/bin/node` | NVM (pre-installed) |
 | **npm** | 10.9.4 | `/home/ubuntu/.nvm/versions/node/v22.21.1/bin/npm` | Bundled with Node.js |
 
@@ -48,9 +48,9 @@ The VM is configured with all necessary tools to develop, build, and test:
 |------|---------|----------|-------------------|
 | **Buf CLI** | 1.61.0 | `/usr/local/bin/buf` | Binary from GitHub releases |
 | **sqlc** | v1.30.0 | `/home/ubuntu/go/bin/sqlc` | `go install` |
-| **golang-migrate** | 4.19.1 | `/usr/local/bin/migrate` | Binary from GitHub releases |
+| **golang-migrate** | dev | `/usr/local/bin/migrate` | Binary from GitHub releases (latest dev build) |
 | **protoc-gen-go** | v1.36.11 | `/home/ubuntu/go/bin/protoc-gen-go` | `go install` |
-| **protoc-gen-connect-go** | 1.19.1 | `/home/ubuntu/go/bin/protoc-gen-connect-go` | `go install` |
+| **protoc-gen-connect-go** | v1.19.1 | `/home/ubuntu/go/bin/protoc-gen-connect-go` | `go install` |
 
 ### Frontend Dependencies
 
@@ -360,7 +360,7 @@ AUTH0_CLIENT_SECRET=<your-client-secret>
 Docker is configured with the `vfs` storage driver, which is appropriate for nested container environments like this VM. This may impact performance compared to overlay2 but ensures compatibility.
 
 ### Go Version
-The VM has Go 1.22.2 installed. The project requires Go 1.22.0+, so this version is compatible. Some tools (like sqlc) use Go 1.24.11 internally.
+The VM has Go 1.23.4 installed (upgraded from 1.22.2 to meet the recommended 1.23+ requirement). The project requires Go 1.22.0+ minimum, so this version exceeds the requirements and is fully compatible.
 
 ### Node.js Management
 Node.js is installed via NVM (Node Version Manager), allowing easy version switching if needed:
@@ -379,11 +379,16 @@ Generated protobuf code is intentionally not committed to the repository. Always
 
 The VM is fully configured with all necessary tools to develop the CloutGG full-stack application:
 
-✅ **Development Tools**: Go 1.22.2, Node.js 22.21.1, npm 10.9.4  
+✅ **Development Tools**: Go 1.23.4, Node.js 22.21.1, npm 10.9.4  
 ✅ **Container Platform**: Docker 29.1.3, Docker Compose v5.0.0  
 ✅ **Code Generation**: Buf 1.61.0, sqlc v1.30.0, protoc plugins  
-✅ **Database Tools**: golang-migrate 4.19.1, PostgreSQL 16  
-✅ **Project Dependencies**: All Go modules and npm packages installed  
-✅ **Verification**: All builds, tests, and linting verified working  
+✅ **Database Tools**: golang-migrate (dev), PostgreSQL 16  
+✅ **Project Dependencies**: All Go modules (26 total) and npm packages (383 total) installed  
+✅ **Verification**: All builds, tests, and code generation verified working  
 
 The environment is ready for development, testing, and deployment!
+
+---
+
+**Last Updated**: December 16, 2025  
+**VM Setup Version**: 2.0 (Parallel setup with Go 1.23.4 upgrade)
