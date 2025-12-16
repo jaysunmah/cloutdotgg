@@ -1,156 +1,232 @@
-# Docker Setup Complete - CloutGG Project
+# Docker Setup Complete
 
-## Installation Summary
+## Summary
 
-Docker has been successfully installed and configured on this VM for the CloutGG project.
+Docker and Docker Compose have been successfully installed and configured for this project.
 
-### Versions Installed
+## Versions Installed
 
-- **Docker Engine**: 29.1.3
+- **Docker**: 29.1.3 (build f52814d)
 - **Docker Compose**: v5.0.0
-- **Docker Buildx**: v0.30.1
-- **Docker Model Plugin**: v1.0.5
+- **Docker Engine**: Community Edition
 
-### Configuration Changes Made
+## Docker Plugins Installed
 
-1. **Docker Installation**
-   - Installed using `/workspace/get-docker.sh` script with `--no-autostart` flag
-   - Installed packages: docker-ce, docker-ce-cli, containerd.io, docker-compose-plugin, docker-buildx-plugin, docker-ce-rootless-extras, docker-model-plugin
+- **buildx**: v0.30.1 - Docker Buildx for multi-platform builds
+- **compose**: v5.0.0 - Docker Compose plugin
+- **model**: v1.0.5 - Docker Model Runner
 
-2. **Storage Driver Configuration**
-   - Created `/etc/docker/daemon.json` with VFS storage driver configuration
-   - VFS driver is required for this VM environment due to overlay filesystem limitations
-   - Configuration:
-     ```json
-     {
-       "storage-driver": "vfs"
-     }
-     ```
+## Setup Process
 
-3. **User Permissions**
-   - Added `ubuntu` user to `docker` group for non-sudo Docker access
-   - User can run Docker commands without sudo after re-login or using `sg docker -c "docker command"`
+### 1. Docker Installation
+Used the official Docker installation script (`get-docker.sh`) which:
+- Detected Ubuntu as the Linux distribution
+- Configured Docker's package repositories
+- Installed Docker Engine, Docker CLI, containerd, and plugins
+- Attempted to enable Docker service (requires manual start in container environments)
 
-4. **Docker Daemon Startup**
-   - Updated `/workspace/start-docker.sh` script to start Docker daemon
-   - Removed redundant `--storage-driver=vfs` flag (now configured via daemon.json)
-   - Docker daemon must be started manually in this environment (no systemd auto-start)
+### 2. User Configuration
+Added the current user to the `docker` group to allow Docker commands without sudo (requires re-login or `newgrp docker` to take effect).
+
+### 3. Docker Daemon Configuration
+Initially encountered an overlay filesystem error when starting containers. This is a common issue in containerized or VM environments where nested overlayfs is not supported.
+
+**Error encountered:**
+```
+Error response from daemon: failed to mount /tmp/containerd-mount2220473286: 
+mount source: "overlay", ... err: invalid argument
+```
+
+**Solution applied:**
+Created `/etc/docker/daemon.json` with the following configuration:
+```json
+{
+  "storage-driver": "vfs"
+}
+```
+
+The `vfs` storage driver is less efficient than `overlay2` but works reliably in all environments, including nested containers and VMs.
+
+### 4. Docker Daemon Start
+Started the Docker daemon using the `start-docker-daemon.sh` script, which:
+- Checks if Docker is already running
+- Starts `dockerd` in the background
+- Waits for initialization
+- Sets appropriate permissions on the Docker socket
+
+## Docker Daemon Status
+
+✅ **Docker daemon is running**
+
+System information:
+- Context: default
+- Debug Mode: false
+- Containers: 0 (Running: 0, Paused: 0, Stopped: 0)
+- Storage Driver: vfs
+
+### Warnings (Non-critical)
+The following warnings are typical in containerized environments and do not affect functionality:
+- No memory limit support
+- No swap limit support
+- No oom kill disable support
+- No cpuset support
+- Support for cgroup v1 is deprecated (planned removal by May 2029)
+
+## PostgreSQL Container Test
+
+Successfully tested the PostgreSQL 16 container from `docker-compose.yml`:
+
+### Test Commands Run
+```bash
+sudo docker compose up -d     # Started container successfully
+sudo docker ps                # Verified container is running
+sudo docker exec cloutgg-postgres pg_isready -U postgres  # Tested connection
+sudo docker compose down      # Stopped and removed container
+```
 
 ### Test Results
+- ✅ PostgreSQL image (postgres:16-alpine) pulled successfully
+- ✅ Network (`workspace_default`) created
+- ✅ Volume (`workspace_postgres_data`) created
+- ✅ Container (`cloutgg-postgres`) started successfully
+- ✅ PostgreSQL accepting connections on port 5434
+- ✅ Health check passed
+- ✅ Container stopped and cleaned up successfully
 
-✅ **Docker Installation**: Successful
-- Docker version: 29.1.3
-- Docker Compose version: v5.0.0
+## Docker Compose Configuration
 
-✅ **Storage Driver**: VFS configured and active
-- Verified via `docker info`
+The project uses Docker Compose v3.8 (note: version field is now obsolete but still works).
 
-✅ **Image Pull Test**: Successful
-- Successfully pulled `postgres:16-alpine` image
-- Image size: 276MB
-
-✅ **Docker Compose Test**: Successful
-- Started PostgreSQL container from `/workspace/docker-compose.yml`
+**Service: db (PostgreSQL)**
+- Image: `postgres:16-alpine`
 - Container name: `cloutgg-postgres`
-- Status: Running and healthy
+- Port mapping: `5434:5432` (host:container)
+- Environment variables:
+  - `POSTGRES_USER`: postgres
+  - `POSTGRES_PASSWORD`: postgres
+  - `POSTGRES_DB`: cloutgg
+- Volume: Persistent data storage in `postgres_data`
+- Health check: `pg_isready -U postgres` every 5s
 
-✅ **PostgreSQL Container**: Fully operational
-- PostgreSQL version: 16.11 on x86_64-pc-linux-musl
-- Database: `cloutgg` created successfully
-- Port mapping: 5434 (host) → 5432 (container)
-- Health status: Healthy
-- Container ID: 21848ac829cd
-- Health check: `pg_isready -U postgres` passes every 5 seconds
+## Commands Reference
 
-✅ **Network Access**: Verified
-- Port 5434 listening on 0.0.0.0 (IPv4) and :: (IPv6)
-- Successfully connected to database via `psql`
-
-### Issues Encountered and Resolutions
-
-**Issue 1: Docker daemon startup conflict**
-- **Problem**: Initial `start-docker.sh` script specified storage driver both as command-line flag and in daemon.json
-- **Error**: "the following directives are specified both as a flag and in the configuration file: storage-driver"
-- **Resolution**: Removed `--storage-driver=vfs` flag from startup script since it's configured in daemon.json
-
-**Issue 2**: Some warnings observed (expected in VM environment)
-- Memory limit support not available
-- Swap limit support not available
-- OOM kill disable support not available
-- cpuset support not available
-- cgroup v1 deprecation warning
-- These are expected limitations in this VM environment and do not affect functionality
-
-### Commands for Future Sessions
-
-#### Start Docker Daemon
+### Starting Docker Daemon
 ```bash
-bash /workspace/start-docker.sh
+bash start-docker-daemon.sh
 ```
 
-Or manually:
+### Basic Docker Commands
 ```bash
-sudo dockerd > /dev/null 2>&1 &
-```
+# Check Docker version
+docker --version
 
-#### Check Docker Status
-```bash
-sudo docker info
+# Check Docker Compose version
+docker compose version
+
+# List running containers
 sudo docker ps
+
+# Start services
+sudo docker compose up -d
+
+# Stop services
+sudo docker compose down
+
+# View logs
+sudo docker compose logs
+
+# Check service status
+sudo docker compose ps
 ```
 
-#### Start PostgreSQL Container
+### Starting PostgreSQL Database
 ```bash
 cd /workspace
 sudo docker compose up -d
 ```
 
-#### Stop PostgreSQL Container
+The database will be available at:
+- Host: localhost
+- Port: 5434
+- Database: cloutgg
+- User: postgres
+- Password: postgres
+
+### Stopping PostgreSQL Database
 ```bash
 cd /workspace
 sudo docker compose down
 ```
 
-#### Check PostgreSQL Logs
+## Important Notes
+
+1. **Sudo Requirement**: Most Docker commands require `sudo` in this environment. To use Docker without sudo, use `newgrp docker` or log out and back in.
+
+2. **Storage Driver**: The system uses the `vfs` storage driver, which is reliable but slower than `overlay2`. This is necessary for the containerized environment.
+
+3. **Docker Daemon**: The daemon must be running before using Docker commands. Use `start-docker-daemon.sh` if it stops.
+
+4. **Migrations**: The `docker-compose.yml` mounts `./backend/migrations` to `/docker-entrypoint-initdb.d`, so SQL migration files will be executed on first container startup.
+
+5. **Data Persistence**: Database data is stored in a Docker volume named `workspace_postgres_data`, which persists even when containers are removed.
+
+## Troubleshooting
+
+### Docker daemon not running
 ```bash
-sudo docker logs cloutgg-postgres
+bash start-docker-daemon.sh
 ```
 
-#### Access PostgreSQL Shell
+### Check Docker daemon logs
 ```bash
-sudo docker exec -it cloutgg-postgres psql -U postgres -d cloutgg
+cat /tmp/dockerd.log
 ```
 
-#### Running Docker as ubuntu user without sudo
-After logging out and back in, or in current session:
+### Cannot connect to Docker daemon
 ```bash
-sg docker -c "docker ps"
+# Ensure daemon is running
+pgrep dockerd
+
+# Check socket permissions
+ls -l /var/run/docker.sock
+
+# Fix permissions if needed
+sudo chmod 666 /var/run/docker.sock
 ```
 
-### PostgreSQL Connection Details
+### Container startup issues
+```bash
+# View container logs
+sudo docker compose logs db
 
-- **Host**: localhost
-- **Port**: 5434
-- **Database**: cloutgg
-- **Username**: postgres
-- **Password**: postgres
+# Check container status
+sudo docker compose ps
 
-### Volume Information
+# Restart services
+sudo docker compose restart
+```
 
-- **Volume Name**: workspace_postgres_data
-- **Mount Point**: /var/lib/postgresql/data (in container)
-- Data persists across container restarts
+## Next Steps
 
-### Next Steps
+1. ✅ Docker installed and configured
+2. ✅ Docker Compose installed
+3. ✅ Docker daemon running
+4. ✅ PostgreSQL container tested successfully
 
-The Docker setup is complete and ready for development. The PostgreSQL database is running and accessible on port 5434. You can now:
+The Docker environment is ready for development. You can now:
+- Start the database with `docker compose up -d`
+- Run database migrations
+- Connect your backend services to the database
+- Develop and test locally with Docker
 
-1. Connect your backend application to the database using the connection details above
-2. Run migrations (they're automatically executed on first startup via docker-entrypoint-initdb.d)
-3. Develop and test your CloutGG application
+## Files Modified/Created
 
----
+- `/etc/docker/daemon.json` - Docker daemon configuration (storage driver)
+- `start-docker-daemon.sh` - Script to start Docker daemon (already existed)
+- `get-docker.sh` - Docker installation script (already existed)
 
-**Setup Date**: December 16, 2025  
-**System**: Linux 6.12.58+ (Ubuntu)  
-**Setup Status**: ✅ Complete and Verified
+## Additional Resources
+
+- Docker Documentation: https://docs.docker.com/
+- Docker Compose Documentation: https://docs.docker.com/compose/
+- PostgreSQL Docker Image: https://hub.docker.com/_/postgres
