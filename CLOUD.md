@@ -1,376 +1,257 @@
-# Cloud VM Setup Documentation
+# Cloud VM Environment Setup
 
-This document describes the complete VM environment setup for the CloutGG project.
+This document describes the VM environment configuration for the CloutGG project.
 
-## 🎯 Overview
+## Pre-installed Tools
 
-CloutGG is a full-stack application with:
-- **Backend**: Go 1.22+ with Connect RPC and PostgreSQL
-- **Frontend**: Next.js 15 with React 18 and TypeScript
-- **Database**: PostgreSQL 16
-- **Code Generation**: Buf (protobuf) and sqlc (database queries)
-
-## 📦 Installed Software & Versions
-
-### Pre-installed (VM Base Image)
-- **Go**: 1.22.2
+The VM comes with the following tools pre-installed:
+- **Go**: 1.22.2 linux/amd64
 - **Node.js**: v22.21.1
-- **npm**: 10.9.4
+- **npm**: (included with Node.js)
+- **Git**: Available for version control
 
-### Installed During Setup
+## Installed Development Tools
 
-#### 1. Docker
-- **Version**: 29.1.3
-- **Installation Method**: Using `/workspace/get-docker.sh` script
-- **Configuration**: 
-  - VFS storage driver (optimized for VM environments)
-  - User `ubuntu` added to docker group
-  - Docker daemon running in background
-- **Notes**: 
-  - Some cgroup v1 warnings are expected in VM environments (non-critical)
-  - No memory/swap limit support (typical in containerized environments)
+### Backend Tools
 
-#### 2. Go Development Tools
+1. **Buf CLI** - v1.61.0
+   - Location: `~/bin/buf`
+   - Purpose: Protobuf code generation
+   - Installation: Downloaded from official releases
 
-##### Buf CLI
-- **Version**: 1.61.0
-- **Installation Method**: Downloaded from GitHub releases
-- **Location**: `/usr/local/bin/buf`
-- **Purpose**: Protocol buffer code generation
+2. **sqlc** - v1.30.0
+   - Location: `~/go/bin/sqlc`
+   - Purpose: Type-safe SQL code generation
+   - Installation: `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
 
-##### sqlc
-- **Version**: v1.30.0
-- **Installation Method**: `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
-- **Location**: `/home/ubuntu/go/bin/sqlc`
-- **Purpose**: Type-safe Go code generation from SQL queries
+3. **protoc-gen-go** - v1.36.11
+   - Location: `~/go/bin/protoc-gen-go`
+   - Purpose: Go protobuf plugin
+   - Installation: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
 
-##### golang-migrate
-- **Version**: 4.19.1
-- **Installation Method**: Downloaded from GitHub releases
-- **Location**: `/usr/local/bin/migrate`
-- **Purpose**: Database schema migrations
+4. **protoc-gen-connect-go** - latest
+   - Location: `~/go/bin/protoc-gen-connect-go`
+   - Purpose: Connect RPC plugin for Go
+   - Installation: `go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest`
 
-##### protoc-gen-go
-- **Version**: v1.36.11
-- **Installation Method**: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
-- **Location**: `/home/ubuntu/go/bin/protoc-gen-go`
-- **Purpose**: Go code generation for Protocol Buffers
+### Docker
 
-##### protoc-gen-connect-go
-- **Version**: v1.19.1
-- **Installation Method**: `go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest`
-- **Location**: `/home/ubuntu/go/bin/protoc-gen-connect-go`
-- **Purpose**: Connect RPC Go code generation
+- **Docker Engine**: v29.1.3 (build f52814d)
+- **Docker Compose**: v5.0.0
+- **Storage Driver**: vfs (configured for VM environment)
+- **Installation**: Official Docker installation script
 
-#### 3. Frontend Tools
+### Frontend Dependencies
 
-##### Buf npm packages
-- **@bufbuild/buf**: Latest
-- **@bufbuild/protoc-gen-es**: Latest (deprecated, using for compatibility)
-- **@bufbuild/protoc-gen-connect-es**: v0.13.0 (deprecated, Connect has moved to @connectrpc org)
-- **Installation Method**: `npm install --save-dev` in frontend directory
-- **Purpose**: TypeScript protobuf and Connect client code generation
+- **Package Count**: 373 packages installed
+- **Security**: 0 vulnerabilities
+- **Key Frameworks**:
+  - Next.js 15.5.9
+  - React 18.3.1
+  - TypeScript 5.9.3
+  - Tailwind CSS 3.4.19
+  - Auth0 Next.js SDK 4.14.0
+  - ConnectRPC libraries
 
-## 🔧 Environment Configuration
+## Environment Setup
 
 ### PATH Configuration
-Go tools are accessible via `/home/ubuntu/go/bin`, which has been added to `~/.bashrc`:
+
+The following paths are added to `~/.bashrc` for persistence:
 ```bash
-export PATH=$PATH:/home/ubuntu/go/bin
+export PATH="$HOME/bin:$HOME/go/bin:$PATH"
 ```
 
-### Database Connection
-PostgreSQL runs via Docker Compose on port **5434** (mapped from container port 5432):
+### Docker Daemon
+
+Docker daemon uses the `vfs` storage driver and must be started manually on VM boot:
+```bash
+./start-docker.sh
 ```
-DATABASE_URL=postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable
-```
 
-Note: Port 5434 is used instead of 5432 to avoid potential conflicts.
+**Important:** The `ubuntu` user has been added to the `docker` group. After taking a snapshot and launching a new VM from it, you may need to:
+- Either log out and log back in for group membership to take effect
+- Or use `sudo docker` commands until you restart your shell session
+- Or run `newgrp docker` to activate the group membership in the current shell
 
-## 🚀 Quick Start Commands
+## Quick Start Commands
 
-### 1. Start PostgreSQL Database
+### 1. Complete Setup (First Time)
+
+Run this after cloning the repository or creating a new VM from snapshot:
+
 ```bash
 cd /workspace
-docker compose up -d
+./start-docker.sh           # Start Docker daemon
+make install                # Install Go modules and npm packages
+make generate               # Generate protobuf and sqlc code
 ```
 
-The database will be available at `localhost:5434` with:
-- Username: `postgres`
-- Password: `postgres`
-- Database: `cloutgg`
-
-### 2. Run Database Migrations
+### 2. Start Docker Daemon (if not running)
 ```bash
-export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
-migrate -path backend/db/migrations -database "$DATABASE_URL" up
+cd /workspace
+./start-docker.sh
 ```
 
-### 3. Generate Code (Protobuf + sqlc)
-```bash
-# Generate all code (both frontend and backend protobuf + sqlc)
-make generate
+### 3. Start Services
 
-# Or individually:
-buf generate proto          # Generate protobuf code
-cd backend && sqlc generate # Generate sqlc database code
+Start each service in a separate terminal:
+
+**Terminal 1 - PostgreSQL:**
+```bash
+cd /workspace
+docker compose up -d        # Or: sudo docker compose up -d
 ```
 
-### 4. Start Backend Server
+**Terminal 2 - Backend:**
 ```bash
-cd backend
-export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
+cd /workspace/backend
 go run .
 ```
 
-Backend will be available at `http://localhost:8080`
-
-### 5. Start Frontend Development Server
+**Terminal 3 - Frontend:**
 ```bash
-cd frontend
-export NEXT_PUBLIC_API_URL="http://localhost:8080"
+cd /workspace/frontend
 npm run dev
 ```
 
-Frontend will be available at `http://localhost:3000`
-
-## 📋 Development Workflow
-
-### Make Targets
-The project includes a Makefile with common tasks:
-
+### 4. Start PostgreSQL
 ```bash
-make install          # Install all dependencies
-make generate         # Generate all code (proto + sqlc)
-make dev             # Start all services (not recommended in Cloud)
-make test            # Run all tests
-make clean           # Clean up containers and generated code
-make lint-proto      # Lint proto files
+docker compose up -d
 ```
 
-### Code Generation
+PostgreSQL will be available on port 5434 (mapped from container port 5432)
 
-#### When to Regenerate Code
-Regenerate code after modifying:
-- `proto/apiv1/api.proto` - Run `buf generate proto`
-- `backend/internal/db/sqlc/queries.sql` - Run `cd backend && sqlc generate`
-
-#### Generated File Locations
-- **Backend Protobuf**: `backend/internal/gen/apiv1/`
-- **Frontend Protobuf**: `frontend/src/lib/gen/apiv1/`
-- **Backend Database**: `backend/internal/db/sqlc/` (models.go, queries.sql.go, etc.)
-
-Note: Generated code is **not committed** to the repository.
-
-## ✅ Verification Tests
-
-All systems have been verified:
-
-### Backend
+### 5. Start Backend
 ```bash
 cd backend
-go build .              # ✓ Compiles successfully
-go test ./...           # ✓ Passes (no test files currently)
+go run .
 ```
 
-### Frontend
+Backend runs on http://localhost:8080
+
+### 6. Start Frontend
 ```bash
 cd frontend
-npm run build           # ✓ Builds successfully
-npx tsc --noEmit       # ✓ Type checking passes
+npm run dev
 ```
 
-### Database
-```bash
-docker ps               # ✓ PostgreSQL container running
-migrate -version        # ✓ Migration tool installed
-```
+Frontend runs on http://localhost:3000
+
+## Service Details
+
+### PostgreSQL Container
+- **Container Name**: `cloutgg-postgres`
+- **Image**: `postgres:16-alpine`
+- **Port Mapping**: `5434:5432` (host:container)
+- **Volume**: `workspace_postgres_data`
+- **Credentials**:
+  - User: `postgres`
+  - Password: `postgres`
+  - Database: `cloutgg`
+- **Health Check**: Configured with 5s intervals
+
+### Backend Service
+- **Port**: 8080
+- **Protocol**: Connect RPC (supports gRPC, gRPC-Web, and Connect)
+- **Database Driver**: pgx (PostgreSQL)
+- **Code Generation**: Automatic via `make generate`
+
+### Frontend Service
+- **Port**: 3000
+- **Framework**: Next.js 15 with App Router
+- **Styling**: Tailwind CSS
+- **API Client**: ConnectRPC
+- **Authentication**: Auth0
+
+## Development Workflow
+
+### After VM Start
+1. Start Docker daemon: `./start-docker.sh`
+2. Start PostgreSQL: `docker compose up -d`
+3. Run code generation (if needed): `make generate`
+4. Start backend: `cd backend && go run .`
+5. Start frontend: `cd frontend && npm run dev`
 
 ### Code Generation
+
+Generated code is **not committed** to git:
+- `backend/internal/gen/` - Go protobuf code
+- `frontend/src/lib/gen/` - TypeScript protobuf code
+
+Run `make generate` after:
+- Cloning the repository
+- Modifying proto files
+- Changing SQL queries
+
+### Database Migrations
+
+Migrations are located in `backend/db/migrations/` and use golang-migrate format.
+
+To run migrations manually:
 ```bash
-buf --version           # ✓ v1.61.0
-sqlc version           # ✓ v1.30.0
+export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
+make migrate-up
 ```
 
-## 🏗️ Project Structure
+Note: The PostgreSQL container automatically runs migrations on first startup via the docker-entrypoint-initdb.d volume mount.
 
-```
-/workspace/
-├── proto/                          # Protocol Buffer definitions
-│   └── apiv1/api.proto            # RPC service definitions
-├── backend/                        # Go API server
-│   ├── internal/
-│   │   ├── gen/                   # Generated protobuf code (not committed)
-│   │   ├── db/sqlc/               # Generated sqlc code (committed)
-│   │   └── service/               # Service implementations
-│   ├── db/migrations/             # Database migrations
-│   ├── go.mod                     # Go dependencies
-│   └── main.go                    # Entry point
-├── frontend/                       # Next.js application
-│   ├── src/
-│   │   ├── app/                   # App router pages
-│   │   ├── components/            # React components
-│   │   └── lib/
-│   │       ├── gen/               # Generated protobuf code (not committed)
-│   │       └── api.ts             # API client setup
-│   ├── package.json               # npm dependencies
-│   └── ...                        # Next.js config files
-├── docker-compose.yml             # PostgreSQL setup
-├── Makefile                       # Build automation
-└── CLOUD.md                       # This file
+## Testing
+
+### Backend Tests
+```bash
+cd backend
+go test ./... -v
 ```
 
-## 🔍 Troubleshooting
+### Frontend Type Checking
+```bash
+cd frontend
+npx tsc --noEmit
+```
+
+### Run All Tests
+```bash
+make test
+```
+
+## Troubleshooting
 
 ### Docker Issues
-
-**Container not starting:**
-```bash
-# Check Docker daemon status
-docker ps
-
-# Restart Docker daemon
-sudo pkill dockerd
-sudo dockerd &
-
-# View container logs
-docker logs cloutgg-postgres
-```
-
-**Permission denied errors:**
-```bash
-# Add user to docker group (already done in setup)
-sudo usermod -aG docker ubuntu
-newgrp docker
-```
+- **Docker daemon not running**: Run `./start-docker.sh`
+- **Port conflicts**: Check if port 5434 is already in use
+- **Container won't start**: Check logs with `docker compose logs db`
 
 ### Code Generation Issues
+- **Missing buf**: Ensure `~/bin` is in PATH
+- **Missing sqlc**: Ensure `~/go/bin` is in PATH
+- **Proto generation fails**: Run `buf dep update proto` first
 
-**Missing protobuf code:**
+### Backend Issues
+- **Database connection failed**: Ensure PostgreSQL container is running
+- **Port 8080 in use**: Check for other processes using the port
+
+### Frontend Issues
+- **npm install fails**: Check Node.js version (requires 20+)
+- **Build fails**: Ensure protobuf code is generated first
+
+## Environment Variables
+
+### Backend (.env or export)
 ```bash
-# Regenerate all code
-make generate
-
-# Or check if buf is in PATH
-which buf
-export PATH=$PATH:/home/ubuntu/go/bin
-```
-
-**sqlc errors:**
-```bash
-# Ensure sqlc is installed and in PATH
-which sqlc
-export PATH=$PATH:/home/ubuntu/go/bin
-
-# Regenerate database code
-cd backend && sqlc generate
-```
-
-### Build Issues
-
-**Backend won't compile:**
-1. Check if protobuf code is generated: `ls backend/internal/gen/apiv1/`
-2. Check Go modules: `cd backend && go mod download`
-3. Regenerate code: `make generate`
-
-**Frontend won't build:**
-1. Check if protobuf code is generated: `ls frontend/src/lib/gen/apiv1/`
-2. Check npm dependencies: `cd frontend && npm install`
-3. Regenerate code: `buf generate proto`
-
-### Database Issues
-
-**Cannot connect to database:**
-```bash
-# Check if container is running
-docker ps
-
-# Check container logs
-docker logs cloutgg-postgres
-
-# Restart container
-docker compose restart
-
-# Test connection
-docker exec -it cloutgg-postgres psql -U postgres -d cloutgg
-```
-
-**Migration errors:**
-```bash
-# Check current migration version
-export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
-migrate -path backend/db/migrations -database "$DATABASE_URL" version
-
-# Force to specific version (use with caution)
-migrate -path backend/db/migrations -database "$DATABASE_URL" force <version>
-```
-
-## 🌐 Deployment Notes
-
-### Railway Deployment
-The project is configured for Railway deployment:
-- `railway.toml` - Railway configuration
-- `.railwayignore` - Files to exclude from deployment
-- Dockerfile.backend - Backend container image
-- Dockerfile.frontend - Frontend container image
-
-### Environment Variables for Production
-```bash
-# Backend
-DATABASE_URL=<postgresql-connection-string>
+DATABASE_URL=postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable
 PORT=8080
-
-# Frontend
-NEXT_PUBLIC_API_URL=<backend-api-url>
 ```
 
-## 📝 Additional Notes
+### Frontend (.env.local)
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8080
+# Add Auth0 credentials as needed
+```
 
-### Performance Considerations
-- Docker uses VFS storage driver - suitable for development but not optimal for production
-- PostgreSQL runs in a container - consider managed PostgreSQL for production
-- Generated code is excluded from git - CI/CD must regenerate on each build
+## Notes
 
-### Security Notes
-- Default PostgreSQL credentials are for development only
-- Production should use strong passwords and SSL connections
-- Auth0 is configured for authentication - ensure proper environment variables are set
-
-### Development Tips
-1. **Keep generated code fresh**: Run `make generate` after pulling changes that modify proto files
-2. **Database changes**: Always create migrations for schema changes (`make migrate-create`)
-3. **Type safety**: The project uses type-safe RPC (Connect) and database queries (sqlc) - take advantage of it
-4. **Testing**: Add tests in `backend/` and `frontend/src/` directories
-
-## 🆘 Support Resources
-
-- **Buf Documentation**: https://buf.build/docs
-- **sqlc Documentation**: https://sqlc.dev
-- **Connect RPC**: https://connectrpc.com
-- **golang-migrate**: https://github.com/golang-migrate/migrate
-- **Next.js**: https://nextjs.org/docs
-- **Docker**: https://docs.docker.com
-
-## ✨ VM Snapshot Ready
-
-This VM environment is fully configured and ready for development. All necessary tools are installed, dependencies are downloaded, and initial verification tests have passed.
-
-**What's included:**
-- ✅ Go 1.22.2 with all required tools
-- ✅ Node.js v22.21.1 with npm dependencies
-- ✅ Docker 29.1.3 with PostgreSQL image
-- ✅ Buf, sqlc, golang-migrate, and protobuf generators
-- ✅ Generated code (protobuf and sqlc)
-- ✅ Database running with migrations applied
-- ✅ All packages compiled and verified
-
-**Next steps after restoring snapshot:**
-1. Start Docker daemon: `sudo dockerd &`
-2. Start PostgreSQL: `docker compose up -d`
-3. Start backend: `cd backend && go run .`
-4. Start frontend: `cd frontend && npm run dev`
-
----
-
-*Document generated: December 16, 2025*
-*VM Setup completed successfully*
+- All tools are configured to persist across shell sessions via `~/.bashrc`
+- Generated protobuf code must be regenerated after VM snapshots if proto files changed
+- PostgreSQL data persists in Docker volume `workspace_postgres_data`
+- The project uses Railway for deployment with automatic code generation during builds
