@@ -17,7 +17,7 @@ type Querier interface {
 	CountVotes(ctx context.Context) (int64, error)
 	CreateComment(ctx context.Context, arg CreateCommentParams) (CompanyComment, error)
 	CreateRating(ctx context.Context, arg CreateRatingParams) (CompanyRating, error)
-	CreateVote(ctx context.Context, arg CreateVoteParams) (Vote, error)
+	CreateVote(ctx context.Context, arg CreateVoteParams) (CreateVoteRow, error)
 	GetAggregatedRatings(ctx context.Context, companyID int32) ([]GetAggregatedRatingsRow, error)
 	GetCategories(ctx context.Context) ([]GetCategoriesRow, error)
 	GetCompanyByID(ctx context.Context, id int32) (Company, error)

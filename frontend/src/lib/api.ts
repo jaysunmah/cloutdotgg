@@ -266,12 +266,14 @@ export async function fetchMatchup(category?: string): Promise<MatchupPair> {
 // Submit vote
 export async function submitVote(
   winnerId: number,
-  loserId: number
+  loserId: number,
+  userId?: string
 ): Promise<VoteResponse> {
   const response = await client.submitVote({
     winnerId,
     loserId,
     sessionId: getSessionId(),
+    userId: userId,
   });
   if (!response.winner || !response.loser) {
     throw new Error("Vote failed");

@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUser } from "@auth0/nextjs-auth0/client";
+import Profile from "./Profile";
+import LoginButton from "./LoginButton";
+import LogoutButton from "./LogoutButton";
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { user, isLoading } = useUser();
 
   const links = [
     { href: "/", label: "Home" },
@@ -54,13 +59,19 @@ export default function Navigation() {
             ))}
           </div>
 
-          {/* CTA */}
-          <Link
-            href="/vote"
-            className="btn-primary btn-sm hidden sm:inline-flex"
-          >
-            Start Voting
-          </Link>
+          {/* Auth Section */}
+          <div className="flex items-center gap-4">
+            {isLoading ? (
+              <div className="w-8 h-8 rounded-full skeleton" />
+            ) : user ? (
+              <div className="flex items-center gap-3">
+                <Profile />
+                <LogoutButton />
+              </div>
+            ) : (
+              <LoginButton />
+            )}
+          </div>
         </div>
       </div>
     </nav>

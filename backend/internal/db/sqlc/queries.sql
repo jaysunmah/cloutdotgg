@@ -74,9 +74,9 @@ SET elo_rating = $2, total_votes = total_votes + 1, losses = losses + 1, updated
 WHERE id = $1;
 
 -- name: CreateVote :one
-INSERT INTO votes (winner_id, loser_id, session_id)
-VALUES ($1, $2, $3)
-RETURNING id, winner_id, loser_id, session_id, created_at;
+INSERT INTO votes (winner_id, loser_id, session_id, user_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, winner_id, loser_id, session_id, user_id, created_at;
 
 -- name: GetLeaderboard :many
 SELECT id, name, slug, logo_url, description, website, category, tags,

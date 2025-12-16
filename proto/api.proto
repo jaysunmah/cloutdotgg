@@ -36,6 +36,7 @@ message Vote {
   int32 loser_id = 3;
   optional string session_id = 4;
   google.protobuf.Timestamp created_at = 5;
+  optional string user_id = 6;
 }
 
 // CompanyRating represents a rating for a specific criterion
@@ -133,6 +134,7 @@ message SubmitVoteRequest {
   int32 winner_id = 1;
   int32 loser_id = 2;
   string session_id = 3;
+  optional string user_id = 4;
 }
 
 message SubmitVoteResponse {

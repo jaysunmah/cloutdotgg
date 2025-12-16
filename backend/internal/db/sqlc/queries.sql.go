@@ -7,6 +7,8 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const companyExists = `-- name: CompanyExists :one
@@ -141,25 +143,41 @@ func (q *Queries) CreateRating(ctx context.Context, arg CreateRatingParams) (Com
 }
 
 const createVote = `-- name: CreateVote :one
-INSERT INTO votes (winner_id, loser_id, session_id)
-VALUES ($1, $2, $3)
-RETURNING id, winner_id, loser_id, session_id, created_at
+INSERT INTO votes (winner_id, loser_id, session_id, user_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, winner_id, loser_id, session_id, user_id, created_at
 `
 
 type CreateVoteParams struct {
 	WinnerID  int32   `json:"winner_id"`
 	LoserID   int32   `json:"loser_id"`
 	SessionID *string `json:"session_id"`
+	UserID    *string `json:"user_id"`
 }
 
-func (q *Queries) CreateVote(ctx context.Context, arg CreateVoteParams) (Vote, error) {
-	row := q.db.QueryRow(ctx, createVote, arg.WinnerID, arg.LoserID, arg.SessionID)
-	var i Vote
+type CreateVoteRow struct {
+	ID        int32              `json:"id"`
+	WinnerID  int32              `json:"winner_id"`
+	LoserID   int32              `json:"loser_id"`
+	SessionID *string            `json:"session_id"`
+	UserID    *string            `json:"user_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) CreateVote(ctx context.Context, arg CreateVoteParams) (CreateVoteRow, error) {
+	row := q.db.QueryRow(ctx, createVote,
+		arg.WinnerID,
+		arg.LoserID,
+		arg.SessionID,
+		arg.UserID,
+	)
+	var i CreateVoteRow
 	err := row.Scan(
 		&i.ID,
 		&i.WinnerID,
 		&i.LoserID,
 		&i.SessionID,
+		&i.UserID,
 		&i.CreatedAt,
 	)
 	return i, err

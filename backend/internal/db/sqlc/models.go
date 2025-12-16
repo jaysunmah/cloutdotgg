@@ -54,4 +54,5 @@ type Vote struct {
 	LoserID   int32              `json:"loser_id"`
 	SessionID *string            `json:"session_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UserID    *string            `json:"user_id"`
 }

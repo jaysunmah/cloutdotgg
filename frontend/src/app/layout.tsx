@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Auth0Provider } from "@auth0/nextjs-auth0/client";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 
@@ -31,8 +32,10 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
-        <Navigation />
-        {children}
+        <Auth0Provider>
+          <Navigation />
+          {children}
+        </Auth0Provider>
       </body>
     </html>
   );

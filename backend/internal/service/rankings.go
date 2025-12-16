@@ -314,10 +314,15 @@ func (s *RankingsService) SubmitVote(
 
 	// Record vote
 	sessionID := req.Msg.SessionId
+	var userID *string
+	if req.Msg.UserId != nil {
+		userID = req.Msg.UserId
+	}
 	s.queries.CreateVote(ctx, sqlc.CreateVoteParams{
 		WinnerID:  req.Msg.WinnerId,
 		LoserID:   req.Msg.LoserId,
 		SessionID: &sessionID,
+		UserID:    userID,
 	})
 
 	// Get updated companies

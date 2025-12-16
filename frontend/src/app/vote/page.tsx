@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import {
   fetchMatchup,
   fetchCategories,
@@ -15,6 +16,7 @@ import {
 type VoteState = "idle" | "voting" | "voted";
 
 export default function VotePage() {
+  const { user } = useUser();
   const [matchup, setMatchup] = useState<MatchupPair | null>(null);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -58,7 +60,9 @@ export default function VotePage() {
     setSelectedId(winnerId);
 
     try {
-      const result = await submitVote(winnerId, loserId);
+      // Pass the user's Auth0 sub (unique ID) to track who voted
+      const userId = user?.sub;
+      const result = await submitVote(winnerId, loserId, userId);
       setVoteResult(result);
       setVoteState("voted");
       setVotesThisSession((prev) => prev + 1);
