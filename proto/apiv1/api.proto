@@ -98,7 +98,6 @@ message GetStatsResponse {
   int32 total_votes = 2;
   int32 total_ratings = 3;
   int32 total_comments = 4;
-  repeated string categories = 5;
 }
 
 // Categories

@@ -62,7 +62,6 @@ export interface Stats {
   total_votes: number;
   total_ratings: number;
   total_comments: number;
-  categories: string[];
 }
 
 export interface CategoryCount {
@@ -212,7 +211,6 @@ export async function fetchStats(): Promise<Stats> {
     total_votes: response.totalVotes,
     total_ratings: response.totalRatings,
     total_comments: response.totalComments,
-    categories: response.categories,
   };
 }
 

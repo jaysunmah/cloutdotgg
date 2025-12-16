@@ -59,17 +59,6 @@ func main() {
 	)
 	mux.Handle(path, handler)
 
-	// Add health check endpoint (REST fallback)
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		if err := pool.Ping(r.Context()); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status":"unhealthy","database":"disconnected"}`))
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"healthy","database":"connected"}`))
-	})
-
 	// CORS configuration
 	corsHandler := cors.New(cors.Options{
 		AllowOriginFunc: func(origin string) bool {

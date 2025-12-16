@@ -121,17 +121,11 @@ func (s *RankingsService) GetStats(
 		totalComments = 0
 	}
 
-	categories, err := s.queries.GetDistinctCategories(ctx)
-	if err != nil {
-		categories = []string{}
-	}
-
 	return connect.NewResponse(&gen.GetStatsResponse{
 		TotalCompanies: int32(totalCompanies),
 		TotalVotes:     int32(totalVotes),
 		TotalRatings:   int32(totalRatings),
 		TotalComments:  int32(totalComments),
-		Categories:     categories,
 	}), nil
 }
 

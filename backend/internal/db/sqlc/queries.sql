@@ -139,9 +139,6 @@ FROM companies
 GROUP BY category
 ORDER BY count DESC;
 
--- name: GetDistinctCategories :many
-SELECT DISTINCT category FROM companies ORDER BY category;
-
 -- name: CountVotes :one
 SELECT COUNT(*) FROM votes;
 

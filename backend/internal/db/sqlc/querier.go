@@ -27,7 +27,6 @@ type Querier interface {
 	GetCompanyEloRating(ctx context.Context, id int32) (int32, error)
 	GetCompanyIDBySlug(ctx context.Context, slug string) (int32, error)
 	GetCompanyRank(ctx context.Context, eloRating int32) (int32, error)
-	GetDistinctCategories(ctx context.Context) ([]string, error)
 	GetLeaderboard(ctx context.Context, arg GetLeaderboardParams) ([]Company, error)
 	GetLeaderboardByCategory(ctx context.Context, arg GetLeaderboardByCategoryParams) ([]Company, error)
 	GetRandomMatchup(ctx context.Context) ([]Company, error)

@@ -396,30 +396,6 @@ func (q *Queries) GetCompanyRank(ctx context.Context, eloRating int32) (int32, e
 	return column_1, err
 }
 
-const getDistinctCategories = `-- name: GetDistinctCategories :many
-SELECT DISTINCT category FROM companies ORDER BY category
-`
-
-func (q *Queries) GetDistinctCategories(ctx context.Context) ([]string, error) {
-	rows, err := q.db.Query(ctx, getDistinctCategories)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var category string
-		if err := rows.Scan(&category); err != nil {
-			return nil, err
-		}
-		items = append(items, category)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getLeaderboard = `-- name: GetLeaderboard :many
 SELECT id, name, slug, logo_url, description, website, category, tags,
        founded_year, hq_location, employee_range, funding_stage,
