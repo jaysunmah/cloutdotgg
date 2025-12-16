@@ -1,314 +1,350 @@
-# Cloud VM Setup Documentation
+# Cloud VM Setup Guide for CloutGG Development
 
-This document describes the setup process and configuration for the CloutGG development environment on this VM.
+This document describes the VM setup process and all dependencies required for developing CloutGG.
 
-## Project Overview
+## VM Environment Details
 
-**CloutGG** is a full-stack web application with:
-- **Backend:** Go 1.22+ with Chi router and PostgreSQL
-- **Frontend:** Next.js 15 with React 18 and Tailwind CSS
-- **Database:** PostgreSQL 16 (running in Docker)
+- **OS**: Linux (Ubuntu-based)
+- **Go Version**: 1.22.2
+- **Node.js Version**: v22.21.1
+- **npm Version**: 10.9.4
 
-## Pre-installed Tools
+## Dependencies Installed
 
-The VM came with the following tools already installed:
-- **Go:** 1.22.2
-- **Node.js:** 22.21.1
-- **npm:** 10.9.4
-- **Make:** 4.3
-- **Git:** 2.43.0
-- **curl:** 8.5.0
-- **jq:** JSON processor
-- **vim & nano:** Text editors
-- **wget, tar, gzip:** Archive tools
+### 1. Docker (v29.1.3)
 
-## Installed Dependencies
+Docker was installed using the official installation script and configured to use the `vfs` storage driver (required for this VM environment due to overlay filesystem limitations).
 
-During the setup process, the following packages were installed:
-
-### 1. Docker & Docker Compose
-- **Docker version:** 29.1.3
-- **Docker Compose version:** v5.0.0
-- **Installation method:** Official Docker installation script
-- **Storage driver:** vfs (required due to VM overlay filesystem limitations)
-
-### 2. PostgreSQL Client Tools
-- **Version:** 16.11
-- **Package:** postgresql-client
-- **Purpose:** Database management and debugging
-
-### 3. Project Dependencies
-
-#### Go Backend Dependencies
-Installed via `go mod download`:
-- github.com/go-chi/chi/v5 v5.1.0 (HTTP router)
-- github.com/go-chi/cors v1.2.1 (CORS middleware)
-- github.com/jackc/pgx/v5 v5.7.1 (PostgreSQL driver)
-- github.com/joho/godotenv v1.5.1 (Environment variables)
-
-#### Node.js Frontend Dependencies
-Installed via `npm install`:
-- next: ^15.1.3
-- react: ^18.3.1
-- react-dom: ^18.3.1
-- typescript: ^5.6.3
-- tailwindcss: ^3.4.15
-- And other dev dependencies (355 packages total)
-
-## Special Configuration
-
-### Docker Setup
-
-Due to VM environment limitations, Docker needs to be started with the **vfs storage driver** instead of the default overlay2 driver. A helper script has been created to handle this.
-
-**Helper Script:** `/workspace/start-docker.sh`
-
-This script:
-1. Checks if Docker is already running
-2. Starts Docker daemon with vfs storage driver
-3. Waits for Docker to be ready (up to 30 seconds)
-
-**Usage:**
+**Installation command:**
 ```bash
-./start-docker.sh
+curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+sudo sh /tmp/get-docker.sh
+sudo usermod -aG docker $USER
 ```
 
-**Note:** Docker daemon is NOT managed by systemd in this VM environment, so it needs to be started manually after VM reboot.
-
-### Database Configuration
-
-PostgreSQL runs in a Docker container with the following configuration:
-- **Container name:** cloutgg-postgres
-- **Port mapping:** 5434:5432 (host:container)
-- **Default credentials:**
-  - User: postgres
-  - Password: postgres
-  - Database: cloutgg
-- **Migrations:** Automatically run on container initialization from `/workspace/backend/migrations/`
-
-**Database Tables:**
-- users
-- companies
-- company_comments
-- company_ratings
-- votes
-
-## Development Workflow
-
-### Quick Start
-
-1. **Start Docker (if not running):**
-   ```bash
-   ./start-docker.sh
-   ```
-
-2. **Start PostgreSQL:**
-   ```bash
-   docker compose up -d
-   ```
-
-3. **Start Backend (Terminal 1):**
-   ```bash
-   cd backend
-   go run .
-   ```
-   Server runs on http://localhost:8080
-
-4. **Start Frontend (Terminal 2):**
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-   Frontend runs on http://localhost:3000
-
-### Using Make Commands
-
-The project includes a Makefile for common tasks:
-
+**Important Note**: The VM doesn't use systemd, so Docker must be started manually:
 ```bash
-make install    # Install all dependencies
-make db         # Start PostgreSQL
-make backend    # Run Go backend
-make frontend   # Run Next.js frontend
-make clean      # Stop and clean up Docker containers
+./start-docker-daemon.sh
 ```
 
-### Building for Production
+### 2. Buf CLI (v1.47.2)
 
-**Backend:**
+Buf is used for Protocol Buffer code generation and linting.
+
+**Installation command:**
+```bash
+curl -sSL https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64 -o /tmp/buf
+sudo mv /tmp/buf /usr/local/bin/buf
+sudo chmod +x /usr/local/bin/buf
+```
+
+### 3. sqlc (v1.30.0)
+
+sqlc generates type-safe Go code from SQL queries.
+
+**Installation command:**
+```bash
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+```
+
+**Important**: Requires Go 1.23+, auto-upgrades to Go 1.24.11 during installation.
+
+### 4. golang-migrate
+
+Database migration tool for managing PostgreSQL schema changes.
+
+**Installation command:**
+```bash
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+```
+
+### 5. protoc-gen-go
+
+Go protocol buffer compiler plugin.
+
+**Installation command:**
+```bash
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+```
+
+## Environment Setup
+
+### PATH Configuration
+
+The Go binaries are installed to `~/go/bin` and must be added to PATH. This has been added to `~/.bashrc`:
+
+```bash
+export PATH=$PATH:$HOME/go/bin
+```
+
+To apply in current shell:
+```bash
+source ~/.bashrc
+```
+
+## Project Setup Workflow
+
+### 1. Install Project Dependencies
+
+```bash
+# Backend Go dependencies
+cd backend && go mod download
+
+# Frontend npm dependencies
+cd frontend && npm install
+```
+
+### 2. Generate Code
+
+The project requires code generation from Protocol Buffers and SQL queries:
+
+```bash
+# Generate all code (proto + sqlc)
+make generate
+
+# Or individually:
+buf generate proto        # Generate proto code
+cd backend && sqlc generate  # Generate sqlc code
+```
+
+This generates:
+- Go server code in `backend/internal/gen/`
+- TypeScript client code in `frontend/src/lib/gen/`
+- sqlc database code in `backend/internal/db/sqlc/`
+
+### 3. Start PostgreSQL Database
+
+```bash
+# Start Docker daemon first (VM-specific requirement)
+./start-docker-daemon.sh
+
+# Start PostgreSQL container
+docker compose up -d
+
+# Verify it's running
+docker ps
+docker exec cloutgg-postgres pg_isready -U postgres
+```
+
+**Database Details:**
+- Port: 5434 (mapped from container port 5432)
+- User: postgres
+- Password: postgres
+- Database: cloutgg
+
+### 4. Run Database Migrations
+
+```bash
+export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
+migrate -path backend/db/migrations -database "$DATABASE_URL" up
+```
+
+### 5. Start Development Servers
+
+**Backend (Go):**
 ```bash
 cd backend
-go build -o bin/server .
+export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
+go run .
 ```
 
-**Frontend:**
+Server runs on http://localhost:8080
+
+**Frontend (Next.js):**
 ```bash
 cd frontend
-npm run build
-npm start
+npm run dev
 ```
 
-### Linting
+Server runs on http://localhost:3000
 
-**Frontend:**
+## Testing & Validation
+
+### Backend Tests
+```bash
+cd backend
+go test ./... -v
+```
+
+### Frontend Type Checking
+```bash
+cd frontend
+npx tsc --noEmit
+```
+
+### Frontend Linting
 ```bash
 cd frontend
 npm run lint
 ```
 
-## Verification Tests Performed
-
-All of the following were successfully tested during setup:
-
-1. ✅ Go backend compilation (`go build`)
-2. ✅ Go backend startup and database connection
-3. ✅ Frontend build (`npm run build`)
-4. ✅ Frontend linting (`npm run lint`)
-5. ✅ PostgreSQL container startup
-6. ✅ Database migrations execution
-7. ✅ Database connection via psql client
-
-## Database Management
-
-### Connect to Database
-
+### Proto Linting
 ```bash
-PGPASSWORD=postgres psql -h localhost -p 5434 -U postgres -d cloutgg
+buf lint proto
 ```
 
-### Common psql Commands
+## Known Issues & Workarounds
 
-```sql
-\dt              -- List all tables
-\d table_name    -- Describe table structure
-\q               -- Quit psql
+### 1. Docker Storage Driver
+
+The VM environment requires Docker to use the `vfs` storage driver instead of the default `overlay2` due to filesystem limitations. This is handled automatically by the `start-docker-daemon.sh` script.
+
+### 2. No systemd
+
+The VM doesn't use systemd, so services must be started manually. Docker cannot be managed with `systemctl` commands.
+
+### 3. Go Version Mismatch
+
+Some Go tools (sqlc, migrate) require Go 1.23+, but the VM has Go 1.22.2. The Go toolchain automatically downloads and uses a compatible version (1.24.11) when installing these tools.
+
+### 4. Frontend Build with buf
+
+The frontend's `prebuild` script tries to use `npx buf`, which won't work. Instead, always run `buf generate proto` from the workspace root before building the frontend.
+
+## Makefile Commands
+
+The project includes a Makefile for common tasks:
+
+| Command | Description |
+|---------|-------------|
+| `make install` | Install all dependencies and tools |
+| `make generate` | Generate all code (proto + sqlc) |
+| `make generate-proto` | Generate only protobuf code |
+| `make generate-sqlc` | Generate only sqlc code |
+| `make dev` | Start all services (db + backend + frontend) |
+| `make db` | Start PostgreSQL |
+| `make backend` | Run Go backend |
+| `make frontend` | Run Next.js frontend |
+| `make test` | Run all tests |
+| `make clean` | Stop containers and clean generated code |
+| `make lint-proto` | Lint proto files |
+| `make migrate-up` | Run database migrations |
+| `make migrate-down` | Rollback migrations |
+
+## Quick Start for Development
+
+After the VM snapshot is restored:
+
+1. Start Docker:
+   ```bash
+   ./start-docker-daemon.sh
+   ```
+
+2. Start PostgreSQL:
+   ```bash
+   docker compose up -d
+   ```
+
+3. Run migrations (first time only):
+   ```bash
+   export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
+   migrate -path backend/db/migrations -database "$DATABASE_URL" up
+   ```
+
+4. Start backend:
+   ```bash
+   cd backend
+   DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable" go run .
+   ```
+
+5. Start frontend (in a separate terminal):
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+## Architecture Overview
+
+```
+┌─────────────┐     Connect RPC      ┌─────────────┐
+│   Next.js   │ ◄──────────────────► │   Go API    │
+│  Frontend   │    (HTTP/2, JSON)    │   Server    │
+└─────────────┘                      └──────┬──────┘
+                                            │
+                                     ┌──────▼──────┐
+                                     │ PostgreSQL  │
+                                     │  Database   │
+                                     └─────────────┘
 ```
 
-### Reset Database
+## Development Tools Summary
 
-```bash
-docker compose down -v
-docker compose up -d
-```
+| Tool | Version | Purpose | Location |
+|------|---------|---------|----------|
+| Go | 1.22.2 | Backend runtime | /usr/bin/go |
+| Node.js | v22.21.1 | Frontend runtime | ~/.nvm/versions/node/v22.21.1/bin/node |
+| npm | 10.9.4 | Package manager | ~/.nvm/versions/node/v22.21.1/bin/npm |
+| Docker | 29.1.3 | Container runtime | /usr/bin/docker |
+| buf | 1.47.2 | Proto code generation | /usr/local/bin/buf |
+| sqlc | 1.30.0 | SQL code generation | ~/go/bin/sqlc |
+| migrate | dev | Database migrations | ~/go/bin/migrate |
+| protoc-gen-go | latest | Go proto plugin | ~/go/bin/protoc-gen-go |
 
 ## Environment Variables
 
-The application expects the following environment variables (default values work for local development):
+### Backend
+- `DATABASE_URL` - PostgreSQL connection string (required)
+- `PORT` - Server port (default: 8080)
 
-```bash
-# Database
-DATABASE_URL=postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable
+### Frontend
+- `NEXT_PUBLIC_API_URL` - Backend API URL (default: http://localhost:8080)
+- Auth0 variables (optional for local dev):
+  - `AUTH0_DOMAIN`
+  - `AUTH0_CLIENT_ID`
+  - `APP_BASE_URL`
+  - `AUTH0_SECRET`
+  - `AUTH0_CLIENT_SECRET`
 
-# Backend
-PORT=8080
+## Verification Checklist
 
-# Frontend
-NEXT_PUBLIC_API_URL=http://localhost:8080
-```
+After VM setup, verify:
 
-## API Endpoints
+- [ ] Docker starts successfully with `./start-docker-daemon.sh`
+- [ ] `docker ps` works without errors
+- [ ] PostgreSQL container starts with `docker compose up -d`
+- [ ] `buf --version` shows v1.47.2
+- [ ] `sqlc version` shows v1.30.0
+- [ ] `migrate -version` works
+- [ ] `buf generate proto` completes without errors
+- [ ] `cd backend && sqlc generate` completes without errors
+- [ ] Backend starts with `cd backend && go run .`
+- [ ] Frontend starts with `cd frontend && npm run dev`
+- [ ] Tests pass with `cd backend && go test ./...`
+- [ ] Type checking passes with `cd frontend && npx tsc --noEmit`
 
-| Method | Endpoint         | Description       |
-|--------|------------------|-------------------|
-| GET    | `/health`        | Health check      |
-| GET    | `/api/users`     | List all users    |
-| POST   | `/api/users`     | Create a user     |
-| GET    | `/api/users/:id` | Get user by ID    |
+## Snapshot Preparation
 
-**Example API Call:**
-```bash
-curl -X POST http://localhost:8080/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"name": "John Doe", "email": "john@example.com"}'
-```
+Before taking a VM snapshot, ensure:
 
-## Troubleshooting
+1. Docker daemon is stopped (it will be started on-demand)
+2. All development servers are stopped
+3. Docker containers are stopped: `docker compose down`
+4. Generated code is present in:
+   - `backend/internal/gen/`
+   - `frontend/src/lib/gen/`
+5. Dependencies are installed:
+   - `backend/go.sum` is up to date
+   - `frontend/node_modules/` exists
+6. PATH is configured in `~/.bashrc`
 
-### Docker Won't Start
+## Support & Troubleshooting
 
-If Docker fails to start or containers won't run:
+### Docker won't start
+- Check if already running: `sudo docker ps`
+- Check logs: `tail -f /tmp/dockerd.log`
+- Restart: `sudo pkill dockerd && ./start-docker-daemon.sh`
 
-1. Stop any existing Docker processes:
-   ```bash
-   sudo pkill dockerd
-   ```
+### Code generation fails
+- Ensure buf is installed: `which buf`
+- Check PATH: `echo $PATH | grep go/bin`
+- Re-run with verbose output: `buf generate proto --debug`
 
-2. Start Docker with the helper script:
-   ```bash
-   ./start-docker.sh
-   ```
+### Backend won't start
+- Check DATABASE_URL is set
+- Verify PostgreSQL is running: `docker ps`
+- Check migrations ran: `migrate -path backend/db/migrations -database "$DATABASE_URL" version`
 
-3. Verify Docker is running:
-   ```bash
-   sudo docker info
-   ```
-
-### Database Connection Issues
-
-If the backend can't connect to PostgreSQL:
-
-1. Check if the container is running:
-   ```bash
-   docker ps
-   ```
-
-2. Check container logs:
-   ```bash
-   docker logs cloutgg-postgres
-   ```
-
-3. Verify port mapping:
-   ```bash
-   docker ps | grep postgres
-   ```
-   Should show `0.0.0.0:5434->5432/tcp`
-
-### Frontend Build Errors
-
-If npm build fails:
-
-1. Clear node_modules and reinstall:
-   ```bash
-   cd frontend
-   rm -rf node_modules package-lock.json
-   npm install
-   ```
-
-## Additional Notes
-
-- **No tests:** The project currently has no test files, so `go test` and `npm test` commands will not execute any tests.
-- **Docker storage:** The vfs storage driver is slower than overlay2 but required for this VM environment.
-- **Port conflict:** Note that PostgreSQL runs on port 5434 (not the default 5432) to avoid conflicts.
-- **Migrations:** Database migrations are automatically executed when the PostgreSQL container starts for the first time.
-
-## VM Snapshot Recommendations
-
-When creating a snapshot of this VM for future use, ensure:
-
-1. Docker daemon is stopped (it should auto-start after VM boots)
-2. No running containers (`docker compose down`)
-3. No unnecessary large files in node_modules or Go cache
-4. The `start-docker.sh` script is present and executable
-
-## Setup Summary
-
-**Total setup time:** ~10 minutes
-
-**Disk space used:**
-- Docker images: ~130 MB
-- Node modules: ~150 MB
-- Go modules: ~50 MB
-
-**Key changes made:**
-1. Installed Docker Engine and Docker Compose
-2. Installed PostgreSQL client tools
-3. Downloaded all Go dependencies
-4. Installed all Node.js dependencies
-5. Created Docker helper script
-6. Verified all components work correctly
-
----
-
-**Last updated:** December 15, 2025
-**VM OS:** Ubuntu 24.04 (Linux 6.12.58+)
-**Setup performed by:** Cloud Agent
+### Frontend won't start
+- Check node_modules exists: `ls frontend/node_modules`
+- Reinstall if needed: `cd frontend && npm install`
+- Check generated code exists: `ls frontend/src/lib/gen/apiv1`
