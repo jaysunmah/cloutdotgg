@@ -1,88 +1,85 @@
 # Go Backend Environment Setup - Complete
 
-## Summary
+## Setup Summary
+Successfully set up the Go backend environment for CloutGG at `/workspace/backend`.
 
-The Go backend environment has been successfully set up and verified.
+## Go Version Installed
+- **Go 1.22.2** (linux/amd64)
+- Meets requirement: >= 1.22 ✓
 
-## Installation Summary
+## Required Tools Installed
 
-### What Was Already Installed
-- **Go 1.22.2** (met minimum requirement but was upgraded)
+### 1. protoc-gen-go
+- **Version:** v1.36.11
+- **Purpose:** Generate Go protobuf code
+- **Installation Command:** `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
+- **Status:** ✓ Installed and in PATH
 
-### What Was Installed
-1. **Go 1.23.4** - Upgraded from 1.22.2
-2. **sqlc v1.30.0** - Database code generator
-3. **protoc-gen-go v1.36.11** - Protocol buffer Go plugin
-4. **golang-migrate dev** - Database migration tool
+### 2. protoc-gen-connect-go
+- **Version:** 1.19.1
+- **Purpose:** Generate Connect-Go service code
+- **Installation Command:** `go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest`
+- **Status:** ✓ Installed and in PATH
 
-## Tool Versions
+### 3. sqlc
+- **Version:** v1.30.0
+- **Purpose:** Generate type-safe Go code from SQL
+- **Installation Command:** `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
+- **Status:** ✓ Installed and in PATH
 
-| Tool | Version | Status |
-|------|---------|--------|
-| Go | 1.23.4 linux/amd64 | ✅ Installed |
-| sqlc | v1.30.0 | ✅ Installed |
-| protoc-gen-go | v1.36.11 | ✅ Installed |
-| golang-migrate | dev | ✅ Installed |
+## Backend Build Status
+- **Status:** ✓ SUCCESSFUL
+- **Binary:** `/workspace/backend/backend` (17MB)
+- **Dependencies:** All Go modules downloaded successfully
+- **Generated Code:** Protobuf/Connect code generated from `/workspace/proto`
 
-## Actions Performed
+## Environment Configuration
+- **GOPATH:** `/home/ubuntu/go`
+- **Go Binaries Location:** `/home/ubuntu/go/bin`
+- **PATH:** Updated in `~/.bashrc` to include `/home/ubuntu/go/bin`
+- **Persistence:** PATH will be available in all new shell sessions
 
-1. ✅ **Go Installation**: Downloaded and installed Go 1.23.4 to `/usr/local/go`
-2. ✅ **PATH Configuration**: Updated PATH in `~/.bashrc` to include:
-   - `/usr/local/go/bin` (Go binaries)
-   - `$HOME/go/bin` (Go tool binaries)
-3. ✅ **sqlc Installation**: Installed via `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
-4. ✅ **protoc-gen-go Installation**: Installed via `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
-5. ✅ **golang-migrate Installation**: Installed with postgres support via `go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
-6. ✅ **Go Module Dependencies**: Downloaded all dependencies in `/workspace/backend`
-7. ✅ **Backend Build**: Successfully compiled backend binary (18MB)
-8. ✅ **sqlc Verification**: Confirmed sqlc works correctly
+## Setup Commands Used
 
-## Build Verification
-
-The backend was successfully built at `/workspace/backend/backend`:
-- Binary size: 18 MB
-- Build completed with no errors
-- All dependencies resolved correctly
-
-## Issues Encountered
-
-No issues encountered during setup. All tools installed and verified successfully.
-
-## Next Steps
-
-The backend environment is now ready for development. You can:
-
-1. **Run the backend**:
-   ```bash
-   cd /workspace/backend
-   ./backend
-   ```
-
-2. **Generate database code with sqlc**:
-   ```bash
-   cd /workspace/backend
-   sqlc generate
-   ```
-
-3. **Run database migrations**:
-   ```bash
-   cd /workspace/backend
-   migrate -path db/migrations -database "your-db-url" up
-   ```
-
-4. **Build the backend**:
-   ```bash
-   cd /workspace/backend
-   go build -o backend .
-   ```
-
-## Environment Variables
-
-Ensure PATH includes Go binaries (already added to `~/.bashrc`):
 ```bash
-export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
+# Check Go version
+go version
+
+# Install required tools
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+# Download Go module dependencies
+cd /workspace/backend && go mod download
+
+# Generate protobuf code
+cd /workspace/backend && buf generate ../proto
+
+# Build the backend
+cd /workspace/backend && go build .
+
+# Add Go bin to PATH
+echo 'export PATH=$PATH:/home/ubuntu/go/bin' >> ~/.bashrc
 ```
 
----
+## Notes
+- Go automatically switches to newer versions (up to 1.24.11) when building packages that require them
+- The buf CLI (v1.47.2) was already installed and used to generate protobuf code
+- All tools are now permanently available in PATH for future shell sessions
 
-Setup completed on: December 16, 2025
+## Verification
+All tools verified and accessible:
+- ✓ Go compiler works
+- ✓ protoc-gen-go accessible and functional
+- ✓ protoc-gen-connect-go accessible and functional
+- ✓ sqlc accessible and functional
+- ✓ Backend compiles without errors
+- ✓ PATH configured correctly
+
+## Next Steps
+The Go backend environment is fully configured and ready for development. You can now:
+1. Run `go build` in the backend directory to compile
+2. Run `buf generate ../proto` to regenerate protobuf code when proto files change
+3. Run `sqlc generate` to regenerate SQL code when queries change
+4. Use all installed Go tools directly from the command line
