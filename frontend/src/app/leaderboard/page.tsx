@@ -6,20 +6,27 @@ import Link from "next/link";
 import {
   fetchLeaderboard,
   fetchCategories,
+  fetchUserLeaderboard,
   LeaderboardResponse,
   CategoryCount,
   Company,
+  UserLeaderboardEntry,
+  UserLeaderboardResponse,
 } from "@/lib/api";
 
 function LeaderboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get("category") || "all";
+  const initialTab = searchParams.get("tab") || "companies";
 
+  const [activeTab, setActiveTab] = useState<"companies" | "users">(initialTab as "companies" | "users");
   const [leaderboard, setLeaderboard] = useState<LeaderboardResponse | null>(null);
+  const [userLeaderboard, setUserLeaderboard] = useState<UserLeaderboardResponse | null>(null);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [page, setPage] = useState(1);
+  const [userPage, setUserPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +43,19 @@ function LeaderboardContent() {
     }
   }, [selectedCategory, page]);
 
+  const loadUserLeaderboard = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await fetchUserLeaderboard(userPage, 25);
+      setUserLeaderboard(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load user leaderboard");
+    } finally {
+      setLoading(false);
+    }
+  }, [userPage]);
+
   useEffect(() => {
     fetchCategories()
       .then(setCategories)
@@ -43,13 +63,24 @@ function LeaderboardContent() {
   }, []);
 
   useEffect(() => {
-    loadLeaderboard();
-  }, [loadLeaderboard]);
+    if (activeTab === "companies") {
+      loadLeaderboard();
+    } else {
+      loadUserLeaderboard();
+    }
+  }, [activeTab, loadLeaderboard, loadUserLeaderboard]);
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
     setPage(1);
     router.push(`/leaderboard${category !== "all" ? `?category=${encodeURIComponent(category)}` : ""}`);
+  };
+
+  const handleTabChange = (tab: "companies" | "users") => {
+    setActiveTab(tab);
+    setPage(1);
+    setUserPage(1);
+    router.push(`/leaderboard?tab=${tab}${tab === "companies" && selectedCategory !== "all" ? `&category=${encodeURIComponent(selectedCategory)}` : ""}`);
   };
 
   const getRankStyle = (rank: number) => {
@@ -69,6 +100,65 @@ function LeaderboardContent() {
   const totalPages = leaderboard
     ? Math.ceil(leaderboard.total_count / leaderboard.page_size)
     : 0;
+
+  const totalUserPages = userLeaderboard
+    ? Math.ceil(userLeaderboard.total_count / userLeaderboard.page_size)
+    : 0;
+
+  const renderUserRow = (user: UserLeaderboardEntry, index: number) => {
+    // Extract display name from user_id (auth0|xxx format)
+    const displayName = user.user_id.includes("|")
+      ? `User ${user.user_id.split("|")[1].slice(0, 8)}...`
+      : user.user_id.slice(0, 12) + "...";
+
+    return (
+      <div
+        key={user.user_id}
+        className="card rounded-xl p-4 sm:p-5 flex items-center gap-4 animate-slideIn"
+        style={{ animationDelay: `${index * 30}ms` }}
+      >
+        {/* Rank */}
+        <div
+          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-lg font-bold shrink-0 ${getRankStyle(
+            user.rank
+          )}`}
+        >
+          {user.rank <= 3 ? getRankIcon(user.rank) : user.rank}
+        </div>
+
+        {/* User Avatar */}
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden bg-gradient-to-br from-accent/20 to-accent/40 shrink-0 flex items-center justify-center">
+          <svg
+            className="w-6 h-6 text-accent"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
+          </svg>
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold truncate">{displayName}</h3>
+          <p className="text-sm text-[var(--text-secondary)]">Voter</p>
+        </div>
+
+        {/* Stats */}
+        <div className="flex items-center gap-4 sm:gap-8 shrink-0">
+          <div className="text-center">
+            <div className="text-lg font-bold text-accent">{user.total_votes}</div>
+            <div className="text-xs text-[var(--text-muted)]">Votes Cast</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderCompanyRow = (company: Company, index: number) => {
     const winRate =
@@ -174,32 +264,62 @@ function LeaderboardContent() {
         <div className="text-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold mb-2">Leaderboard</h1>
           <p className="text-[var(--text-secondary)]">
-            {leaderboard?.total_count || 0} companies ranked by ELO rating
+            {activeTab === "companies"
+              ? `${leaderboard?.total_count || 0} companies ranked by ELO rating`
+              : `${userLeaderboard?.total_count || 0} users ranked by votes cast`}
           </p>
         </div>
 
-        {/* Category Filter */}
-        <div className="flex flex-wrap justify-center gap-2 mb-8">
+        {/* Tab Switcher */}
+        <div className="flex justify-center gap-2 mb-6">
           <button
-            onClick={() => handleCategoryChange("all")}
-            className={`btn-sm rounded-full ${
-              selectedCategory === "all" ? "btn-primary" : "btn-secondary"
+            onClick={() => handleTabChange("companies")}
+            className={`btn-sm rounded-full flex items-center gap-2 ${
+              activeTab === "companies" ? "btn-primary" : "btn-secondary"
             }`}
           >
-            All ({categories.reduce((sum, c) => sum + c.count, 0)})
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            Companies
           </button>
-          {categories.map((cat) => (
+          <button
+            onClick={() => handleTabChange("users")}
+            className={`btn-sm rounded-full flex items-center gap-2 ${
+              activeTab === "users" ? "btn-primary" : "btn-secondary"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            Top Voters
+          </button>
+        </div>
+
+        {/* Category Filter - Only show for companies tab */}
+        {activeTab === "companies" && (
+          <div className="flex flex-wrap justify-center gap-2 mb-8">
             <button
-              key={cat.category}
-              onClick={() => handleCategoryChange(cat.category)}
+              onClick={() => handleCategoryChange("all")}
               className={`btn-sm rounded-full ${
-                selectedCategory === cat.category ? "btn-primary" : "btn-secondary"
+                selectedCategory === "all" ? "btn-primary" : "btn-secondary"
               }`}
             >
-              {cat.category} ({cat.count})
+              All ({categories.reduce((sum, c) => sum + c.count, 0)})
             </button>
-          ))}
-        </div>
+            {categories.map((cat) => (
+              <button
+                key={cat.category}
+                onClick={() => handleCategoryChange(cat.category)}
+                className={`btn-sm rounded-full ${
+                  selectedCategory === cat.category ? "btn-primary" : "btn-secondary"
+                }`}
+              >
+                {cat.category} ({cat.count})
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Loading State */}
         {loading && (
@@ -213,14 +333,14 @@ function LeaderboardContent() {
         {error && !loading && (
           <div className="card rounded-2xl p-8 text-center max-w-md mx-auto">
             <p className="text-red-400 mb-4">{error}</p>
-            <button onClick={loadLeaderboard} className="btn-primary">
+            <button onClick={activeTab === "companies" ? loadLeaderboard : loadUserLeaderboard} className="btn-primary">
               Try Again
             </button>
           </div>
         )}
 
-        {/* Leaderboard Table */}
-        {leaderboard && !loading && !error && (
+        {/* Companies Leaderboard */}
+        {activeTab === "companies" && leaderboard && !loading && !error && (
           <>
             <div className="space-y-3">
               {leaderboard.companies.map((company, index) =>
@@ -255,6 +375,54 @@ function LeaderboardContent() {
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
+                  className="btn-secondary btn-sm"
+                >
+                  Next
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* User Leaderboard */}
+        {activeTab === "users" && userLeaderboard && !loading && !error && (
+          <>
+            <div className="space-y-3">
+              {userLeaderboard.users.map((user, index) =>
+                renderUserRow(user, index)
+              )}
+            </div>
+
+            {userLeaderboard.users.length === 0 && (
+              <div className="card rounded-xl p-12 text-center">
+                <p className="text-[var(--text-secondary)]">
+                  No users have voted yet. Be the first!
+                </p>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalUserPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-8">
+                <button
+                  onClick={() => setUserPage((p) => Math.max(1, p - 1))}
+                  disabled={userPage === 1}
+                  className="btn-secondary btn-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Previous
+                </button>
+                <span className="px-4 text-[var(--text-secondary)]">
+                  Page {userPage} of {totalUserPages}
+                </span>
+                <button
+                  onClick={() => setUserPage((p) => Math.min(totalUserPages, p + 1))}
+                  disabled={userPage === totalUserPages}
                   className="btn-secondary btn-sm"
                 >
                   Next

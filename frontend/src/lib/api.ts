@@ -1,6 +1,6 @@
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
-import { RankingsService } from "./gen/api_pb";
+import { RankingsService } from "./gen/apiv1/api_pb";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -84,6 +84,19 @@ export interface Comment {
   session_id: string | null;
   upvotes: number;
   created_at: string;
+}
+
+export interface UserLeaderboardEntry {
+  user_id: string;
+  total_votes: number;
+  rank: number;
+}
+
+export interface UserLeaderboardResponse {
+  users: UserLeaderboardEntry[];
+  total_count: number;
+  page: number;
+  page_size: number;
 }
 
 // Helper to convert timestamp to ISO string
@@ -339,6 +352,27 @@ export async function upvoteComment(commentId: number): Promise<Comment> {
     throw new Error("Upvote failed");
   }
   return protoCommentToApi(response.comment);
+}
+
+// Fetch user leaderboard
+export async function fetchUserLeaderboard(
+  page = 1,
+  pageSize = 25
+): Promise<UserLeaderboardResponse> {
+  const response = await client.getUserLeaderboard({
+    page,
+    pageSize,
+  });
+  return {
+    users: response.users.map((u) => ({
+      user_id: u.userId,
+      total_votes: u.totalVotes,
+      rank: u.rank,
+    })),
+    total_count: response.totalCount,
+    page: response.page,
+    page_size: response.pageSize,
+  };
 }
 
 // Export a function to check if protobuf is enabled (always true now with Connect)

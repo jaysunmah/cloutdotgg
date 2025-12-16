@@ -66,6 +66,17 @@ func (q *Queries) CountRatings(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countUsersWithVotes = `-- name: CountUsersWithVotes :one
+SELECT COUNT(DISTINCT user_id) FROM votes WHERE user_id IS NOT NULL AND user_id != ''
+`
+
+func (q *Queries) CountUsersWithVotes(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersWithVotes)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countVotes = `-- name: CountVotes :one
 SELECT COUNT(*) FROM votes
 `
@@ -604,6 +615,45 @@ func (q *Queries) GetRandomMatchupByCategory(ctx context.Context, category strin
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserLeaderboard = `-- name: GetUserLeaderboard :many
+SELECT user_id, COUNT(*) as total_votes
+FROM votes
+WHERE user_id IS NOT NULL AND user_id != ''
+GROUP BY user_id
+ORDER BY total_votes DESC
+LIMIT $1 OFFSET $2
+`
+
+type GetUserLeaderboardParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type GetUserLeaderboardRow struct {
+	UserID     *string `json:"user_id"`
+	TotalVotes int64   `json:"total_votes"`
+}
+
+func (q *Queries) GetUserLeaderboard(ctx context.Context, arg GetUserLeaderboardParams) ([]GetUserLeaderboardRow, error) {
+	rows, err := q.db.Query(ctx, getUserLeaderboard, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserLeaderboardRow{}
+	for rows.Next() {
+		var i GetUserLeaderboardRow
+		if err := rows.Scan(&i.UserID, &i.TotalVotes); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

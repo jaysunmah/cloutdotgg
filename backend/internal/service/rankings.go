@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/cloutdotgg/backend/internal/db/sqlc"
-	"github.com/cloutdotgg/backend/internal/gen"
+	gen "github.com/cloutdotgg/backend/internal/gen/apiv1"
 )
 
 // RankingsService implements the RankingsServiceHandler interface
@@ -391,6 +391,55 @@ func (s *RankingsService) GetLeaderboard(
 
 	return connect.NewResponse(&gen.GetLeaderboardResponse{
 		Companies:  protoCompanies,
+		TotalCount: int32(totalCount),
+		Page:       page,
+		PageSize:   pageSize,
+	}), nil
+}
+
+// GetUserLeaderboard returns the user leaderboard ranked by total votes
+func (s *RankingsService) GetUserLeaderboard(
+	ctx context.Context,
+	req *connect.Request[gen.GetUserLeaderboardRequest],
+) (*connect.Response[gen.GetUserLeaderboardResponse], error) {
+	page := req.Msg.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := req.Msg.PageSize
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 25
+	}
+	offset := (page - 1) * pageSize
+
+	users, err := s.queries.GetUserLeaderboard(ctx, sqlc.GetUserLeaderboardParams{
+		Limit:  pageSize,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	totalCount, err := s.queries.CountUsersWithVotes(ctx)
+	if err != nil {
+		totalCount = 0
+	}
+
+	protoUsers := make([]*gen.UserLeaderboardEntry, len(users))
+	for i, u := range users {
+		userId := ""
+		if u.UserID != nil {
+			userId = *u.UserID
+		}
+		protoUsers[i] = &gen.UserLeaderboardEntry{
+			UserId:     userId,
+			TotalVotes: int32(u.TotalVotes),
+			Rank:       int32(offset) + int32(i) + 1,
+		}
+	}
+
+	return connect.NewResponse(&gen.GetUserLeaderboardResponse{
+		Users:      protoUsers,
 		TotalCount: int32(totalCount),
 		Page:       page,
 		PageSize:   pageSize,

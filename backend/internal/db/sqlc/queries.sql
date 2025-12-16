@@ -156,3 +156,14 @@ SELECT EXISTS(SELECT 1 FROM companies WHERE id = $1);
 
 -- name: GetCompanyIDBySlug :one
 SELECT id FROM companies WHERE slug = $1;
+
+-- name: GetUserLeaderboard :many
+SELECT user_id, COUNT(*) as total_votes
+FROM votes
+WHERE user_id IS NOT NULL AND user_id != ''
+GROUP BY user_id
+ORDER BY total_votes DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountUsersWithVotes :one
+SELECT COUNT(DISTINCT user_id) FROM votes WHERE user_id IS NOT NULL AND user_id != '';

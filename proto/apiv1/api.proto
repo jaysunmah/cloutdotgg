@@ -73,6 +73,13 @@ message CategoryCount {
   int32 count = 2;
 }
 
+// UserLeaderboardEntry represents a user's voting stats
+message UserLeaderboardEntry {
+  string user_id = 1;
+  int32 total_votes = 2;
+  int32 rank = 3;
+}
+
 // ============= Request/Response Messages =============
 
 // Health
@@ -206,6 +213,19 @@ message UpvoteCommentResponse {
   CompanyComment comment = 1;
 }
 
+// User Leaderboard
+message GetUserLeaderboardRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message GetUserLeaderboardResponse {
+  repeated UserLeaderboardEntry users = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
 // ============= Service Definition =============
 
 // RankingsService provides all API operations for the AI company rankings platform
@@ -229,6 +249,7 @@ service RankingsService {
   
   // Leaderboard
   rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
+  rpc GetUserLeaderboard(GetUserLeaderboardRequest) returns (GetUserLeaderboardResponse);
   
   // Ratings
   rpc SubmitRating(SubmitRatingRequest) returns (SubmitRatingResponse);
