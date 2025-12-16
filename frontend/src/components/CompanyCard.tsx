@@ -34,8 +34,8 @@ export default function CompanyCard({
   };
 
   const winRate =
-    company.total_votes > 0
-      ? ((company.wins / company.total_votes) * 100).toFixed(0)
+    company.totalVotes > 0
+      ? ((company.wins / company.totalVotes) * 100).toFixed(0)
       : "0";
 
   return (
@@ -44,7 +44,7 @@ export default function CompanyCard({
         <div className={sizeClasses[size]}>
           <div className="flex items-start gap-4">
             {/* Rank Badge */}
-            {showRank && company.rank && (
+            {showRank && company.rank > 0 && (
               <div
                 className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${getRankBadgeClass(
                   company.rank
@@ -58,9 +58,9 @@ export default function CompanyCard({
             <div
               className={`${logoSizes[size]} rounded-xl overflow-hidden shrink-0 bg-white flex items-center justify-center`}
             >
-              {company.logo_url ? (
+              {company.logoUrl ? (
                 <img
-                  src={company.logo_url}
+                  src={company.logoUrl}
                   alt={company.name}
                   className="w-full h-full object-contain p-1"
                   onError={(e) => {
@@ -71,7 +71,7 @@ export default function CompanyCard({
               ) : null}
               <div
                 className={`logo-fallback ${logoSizes[size]} rounded-xl ${
-                  company.logo_url ? "hidden" : ""
+                  company.logoUrl ? "hidden" : ""
                 }`}
               >
                 {company.name.charAt(0)}
@@ -103,7 +103,7 @@ export default function CompanyCard({
                 <div className="flex items-center gap-1.5">
                   <span className="text-[var(--text-muted)]">ELO</span>
                   <span className="font-mono font-semibold text-accent">
-                    {company.elo_rating}
+                    {company.eloRating}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -115,7 +115,7 @@ export default function CompanyCard({
                 <div className="flex items-center gap-1.5">
                   <span className="text-[var(--text-muted)]">Votes</span>
                   <span className="font-mono text-[var(--text-secondary)]">
-                    {company.total_votes}
+                    {company.totalVotes}
                   </span>
                 </div>
               </div>

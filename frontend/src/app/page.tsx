@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { fetchStats, fetchLeaderboard, fetchCategories, Stats, Company, CategoryCount } from "@/lib/api";
+import { api, Company, CategoryCount, GetStatsResponse } from "@/lib/api";
 import CompanyCard from "@/components/CompanyCard";
 
 export default function Home() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [stats, setStats] = useState<GetStatsResponse | null>(null);
   const [topCompanies, setTopCompanies] = useState<Company[]>([]);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,13 +16,13 @@ export default function Home() {
     async function loadData() {
       try {
         const [statsData, leaderboardData, categoriesData] = await Promise.all([
-          fetchStats(),
-          fetchLeaderboard(undefined, 1, 6),
-          fetchCategories(),
+          api.getStats({}),
+          api.getLeaderboard({ page: 1, pageSize: 6 }),
+          api.listCategories({}),
         ]);
         setStats(statsData);
         setTopCompanies(leaderboardData.companies);
-        setCategories(categoriesData);
+        setCategories(categoriesData.categories);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
@@ -74,7 +74,7 @@ export default function Home() {
           <div className="text-center max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm font-medium mb-6 animate-fadeIn">
               <span className="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
-              {stats?.total_votes.toLocaleString() || 0} votes cast
+              {stats?.totalVotes.toLocaleString() || 0} votes cast
             </div>
             
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-fadeIn" style={{ animationDelay: "100ms" }}>
@@ -115,19 +115,19 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center">
               <div className="text-3xl sm:text-4xl font-bold text-accent mb-1">
-                {stats?.total_companies || 0}
+                {stats?.totalCompanies || 0}
               </div>
               <div className="text-sm text-[var(--text-secondary)]">AI Companies</div>
             </div>
             <div className="text-center">
               <div className="text-3xl sm:text-4xl font-bold text-green-400 mb-1">
-                {stats?.total_votes.toLocaleString() || 0}
+                {stats?.totalVotes.toLocaleString() || 0}
               </div>
               <div className="text-sm text-[var(--text-secondary)]">Total Votes</div>
             </div>
             <div className="text-center">
               <div className="text-3xl sm:text-4xl font-bold text-yellow-400 mb-1">
-                {stats?.total_ratings.toLocaleString() || 0}
+                {stats?.totalRatings.toLocaleString() || 0}
               </div>
               <div className="text-sm text-[var(--text-secondary)]">Ratings</div>
             </div>
