@@ -1,5 +1,6 @@
 #!/bin/bash
-# Start Docker daemon with vfs storage driver
+# Start Docker daemon
+# VFS storage driver is configured in /etc/docker/daemon.json
 # This is needed in this VM environment due to overlay filesystem limitations
 
 # Check if Docker daemon is already running
@@ -8,9 +9,9 @@ if sudo docker info > /dev/null 2>&1; then
     exit 0
 fi
 
-# Start Docker daemon with vfs storage driver in background
-echo "Starting Docker daemon with vfs storage driver..."
-sudo dockerd --storage-driver=vfs > /dev/null 2>&1 &
+# Start Docker daemon in background (configuration loaded from /etc/docker/daemon.json)
+echo "Starting Docker daemon..."
+sudo dockerd > /dev/null 2>&1 &
 
 # Wait for Docker to be ready
 echo "Waiting for Docker to be ready..."
