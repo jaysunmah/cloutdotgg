@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import AuthButton from "./AuthButton";
 
 export default function Navigation() {
   const pathname = usePathname();
@@ -54,13 +55,8 @@ export default function Navigation() {
             ))}
           </div>
 
-          {/* CTA */}
-          <Link
-            href="/vote"
-            className="btn-primary btn-sm hidden sm:inline-flex"
-          >
-            Start Voting
-          </Link>
+          {/* Auth */}
+          <AuthButton />
         </div>
       </div>
     </nav>

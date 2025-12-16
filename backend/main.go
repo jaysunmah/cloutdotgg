@@ -15,6 +15,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"github.com/cloutdotgg/backend/internal/auth"
 	"github.com/cloutdotgg/backend/internal/db"
 	"github.com/cloutdotgg/backend/internal/gen/genconnect"
 	"github.com/cloutdotgg/backend/internal/service"
@@ -46,16 +47,41 @@ func main() {
 
 	log.Println("Connected to database")
 
+	// Initialize Auth0 JWT validator (optional - only if configured)
+	var authInterceptor connect.UnaryInterceptorFunc
+	auth0Domain := os.Getenv("AUTH0_DOMAIN")
+	auth0Audience := os.Getenv("AUTH0_AUDIENCE")
+
+	if auth0Domain != "" && auth0Audience != "" {
+		jwtValidator, err := auth.NewJWTValidator(auth0Domain, auth0Audience)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize JWT validator: %v", err)
+		} else {
+			defer jwtValidator.Close()
+			// Use optional auth - validates token if present, but doesn't require it
+			authInterceptor = jwtValidator.AuthInterceptor(false)
+			log.Println("Auth0 JWT validation enabled")
+		}
+	} else {
+		log.Println("Auth0 not configured - running without authentication")
+	}
+
 	// Create rankings service
 	rankingsService := service.NewRankingsService(pool)
 
 	// Create Connect handler
 	mux := http.NewServeMux()
 
+	// Build interceptors list
+	var interceptors []connect.Interceptor
+	if authInterceptor != nil {
+		interceptors = append(interceptors, authInterceptor)
+	}
+
 	// Register Connect service
 	path, handler := genconnect.NewRankingsServiceHandler(
 		rankingsService,
-		connect.WithInterceptors(),
+		connect.WithInterceptors(interceptors...),
 	)
 	mux.Handle(path, handler)
 

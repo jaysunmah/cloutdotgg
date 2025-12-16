@@ -5,11 +5,56 @@ import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-// Create Connect transport
+// Cache for access token
+let cachedAccessToken: string | null = null;
+let tokenFetchPromise: Promise<string | null> | null = null;
+
+// Fetch and cache access token
+async function getAccessToken(): Promise<string | null> {
+  // Return cached token if available
+  if (cachedAccessToken) return cachedAccessToken;
+  
+  // If already fetching, wait for that promise
+  if (tokenFetchPromise) return tokenFetchPromise;
+  
+  // Fetch new token
+  tokenFetchPromise = (async () => {
+    try {
+      const res = await fetch("/api/auth/token");
+      if (!res.ok) return null;
+      const data = await res.json();
+      cachedAccessToken = data.accessToken || null;
+      return cachedAccessToken;
+    } catch {
+      return null;
+    } finally {
+      tokenFetchPromise = null;
+    }
+  })();
+  
+  return tokenFetchPromise;
+}
+
+// Clear cached token (call on logout)
+export function clearAccessToken() {
+  cachedAccessToken = null;
+}
+
+// Create Connect transport with auth interceptor
 const transport = createConnectTransport({
   baseUrl: API_URL,
   // Use JSON by default for browser compatibility
   useBinaryFormat: false,
+  interceptors: [
+    (next) => async (req) => {
+      // Try to get access token
+      const token = await getAccessToken();
+      if (token) {
+        req.header.set("Authorization", `Bearer ${token}`);
+      }
+      return next(req);
+    },
+  ],
 });
 
 // Create the client

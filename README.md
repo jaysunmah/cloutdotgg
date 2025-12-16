@@ -241,7 +241,66 @@ PORT=8080
 
 # Frontend
 NEXT_PUBLIC_API_URL=http://localhost:8080
+
+# Auth0 - Frontend (Next.js)
+AUTH0_SECRET=              # Run `openssl rand -hex 32` to generate
+AUTH0_BASE_URL=http://localhost:3000
+AUTH0_ISSUER_BASE_URL=https://YOUR_DOMAIN.auth0.com
+AUTH0_CLIENT_ID=           # From Auth0 Application settings
+AUTH0_CLIENT_SECRET=       # From Auth0 Application settings
+AUTH0_AUDIENCE=            # Your API identifier (optional, for access tokens)
+
+# Auth0 - Backend (Go)
+AUTH0_DOMAIN=YOUR_DOMAIN.auth0.com
+AUTH0_AUDIENCE=https://api.cloutdotgg.com  # Your API identifier
 ```
+
+## Auth0 Setup
+
+This project uses [Auth0](https://auth0.com/) for authentication.
+
+### 1. Create an Auth0 Application
+
+1. Go to [Auth0 Dashboard](https://manage.auth0.com/)
+2. Create a new **Regular Web Application**
+3. Configure the following:
+   - **Allowed Callback URLs:** `http://localhost:3000/api/auth/callback`
+   - **Allowed Logout URLs:** `http://localhost:3000`
+   - **Allowed Web Origins:** `http://localhost:3000`
+
+### 2. Create an Auth0 API (for backend JWT validation)
+
+1. In Auth0 Dashboard, go to **Applications > APIs**
+2. Create a new API with:
+   - **Identifier:** `https://api.cloutdotgg.com` (or your preferred identifier)
+   - **Signing Algorithm:** RS256
+3. Use this identifier as `AUTH0_AUDIENCE`
+
+### 3. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# Frontend
+AUTH0_SECRET=$(openssl rand -hex 32)
+AUTH0_BASE_URL=http://localhost:3000
+AUTH0_ISSUER_BASE_URL=https://YOUR_DOMAIN.auth0.com
+AUTH0_CLIENT_ID=your_client_id
+AUTH0_CLIENT_SECRET=your_client_secret
+AUTH0_AUDIENCE=https://api.cloutdotgg.com
+
+# Backend
+AUTH0_DOMAIN=YOUR_DOMAIN.auth0.com
+AUTH0_AUDIENCE=https://api.cloutdotgg.com
+```
+
+### 4. Enable Access Tokens (Optional)
+
+To get access tokens for API calls, update your Auth0 Application:
+
+1. Go to **Applications > Your App > APIs**
+2. Enable the API you created
+3. The frontend will automatically include the access token in API requests
 
 ## Deploy to Railway
 
