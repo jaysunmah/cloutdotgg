@@ -1,282 +1,196 @@
-# CloutGG
+[![GitHub Workflow Status (branch)](https://img.shields.io/github/actions/workflow/status/golang-migrate/migrate/ci.yaml?branch=master)](https://github.com/golang-migrate/migrate/actions/workflows/ci.yaml?query=branch%3Amaster)
+[![GoDoc](https://pkg.go.dev/badge/github.com/golang-migrate/migrate)](https://pkg.go.dev/github.com/golang-migrate/migrate/v4)
+[![Coverage Status](https://img.shields.io/coveralls/github/golang-migrate/migrate/master.svg)](https://coveralls.io/github/golang-migrate/migrate?branch=master)
+[![packagecloud.io](https://img.shields.io/badge/deb-packagecloud.io-844fec.svg)](https://packagecloud.io/golang-migrate/migrate?filter=debs)
+[![Docker Pulls](https://img.shields.io/docker/pulls/migrate/migrate.svg)](https://hub.docker.com/r/migrate/migrate/)
+![Supported Go Versions](https://img.shields.io/badge/Go-1.24%2C%201.25-lightgrey.svg)
+[![GitHub Release](https://img.shields.io/github/release/golang-migrate/migrate.svg)](https://github.com/golang-migrate/migrate/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/golang-migrate/migrate/v4)](https://goreportcard.com/report/github.com/golang-migrate/migrate/v4)
 
-Full-stack webapp with **Go** backend, **PostgreSQL** database, and **Next.js** frontend. Uses **Connect RPC** for type-safe API communication and **sqlc** for database queries.
+# migrate
 
-## Project Structure
+__Database migrations written in Go. Use as [CLI](#cli-usage) or import as [library](#use-in-your-go-project).__
 
-```
-.
-├── proto/                 # Protocol Buffer definitions
-│   └── api.proto          # RPC service and message definitions
-├── backend/               # Go API server
-│   ├── internal/
-│   │   ├── gen/          # Generated Connect/protobuf code (not committed)
-│   │   ├── db/
-│   │   │   └── sqlc/     # Generated sqlc database code
-│   │   └── service/      # RPC service implementations
-│   ├── db/
-│   │   └── migrations/   # SQL migrations (golang-migrate format)
-│   ├── buf.gen.yaml      # Backend-specific buf generation config
-│   ├── go.mod
-│   └── main.go
-├── frontend/             # Next.js app
-│   ├── src/
-│   │   ├── app/         # App router pages
-│   │   └── lib/
-│   │       ├── api.ts    # API client using Connect
-│   │       └── gen/      # Generated Connect client code (not committed)
-│   ├── buf.gen.yaml      # Frontend-specific buf generation config
-│   ├── package.json
-│   └── ...
-├── buf.yaml              # Buf configuration
-├── buf.gen.yaml          # Buf code generation config (for local dev)
-├── docker-compose.yml    # PostgreSQL container
-├── Makefile              # Build automation
-└── README.md
-```
+* Migrate reads migrations from [sources](#migration-sources)
+   and applies them in correct order to a [database](#databases).
+* Drivers are "dumb", migrate glues everything together and makes sure the logic is bulletproof.
+   (Keeps the drivers lightweight, too.)
+* Database drivers don't assume things or try to correct user input. When in doubt, fail.
 
-> **Note:** Generated proto code (`backend/internal/gen/` and `frontend/src/lib/gen/`) is **not committed** to the repository. Run `make generate` after cloning to generate these files locally. CI/CD pipelines automatically generate them during builds.
+Forked from [mattes/migrate](https://github.com/mattes/migrate)
 
-## Prerequisites
+## Databases
 
-- [Go 1.23+](https://golang.org/dl/)
-- [Node.js 20+](https://nodejs.org/)
-- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL)
-- [Buf CLI](https://buf.build/docs/installation) (for protobuf code generation)
+Database drivers run migrations. [Add a new database?](database/driver.go)
 
-## Quick Start
+* [PostgreSQL](database/postgres)
+* [PGX v4](database/pgx)
+* [PGX v5](database/pgx/v5)
+* [Redshift](database/redshift)
+* [Ql](database/ql)
+* [Cassandra / ScyllaDB](database/cassandra)
+* [SQLite](database/sqlite)
+* [SQLite3](database/sqlite3) ([todo #165](https://github.com/mattes/migrate/issues/165))
+* [SQLCipher](database/sqlcipher)
+* [MySQL / MariaDB](database/mysql)
+* [Neo4j](database/neo4j)
+* [MongoDB](database/mongodb)
+* [CrateDB](database/crate) ([todo #170](https://github.com/mattes/migrate/issues/170))
+* [Shell](database/shell) ([todo #171](https://github.com/mattes/migrate/issues/171))
+* [Google Cloud Spanner](database/spanner)
+* [CockroachDB](database/cockroachdb)
+* [YugabyteDB](database/yugabytedb)
+* [ClickHouse](database/clickhouse)
+* [Firebird](database/firebird)
+* [MS SQL Server](database/sqlserver)
+* [rqlite](database/rqlite)
 
-### 1. Install Dependencies
+### Database URLs
 
-```bash
-make install
-```
+Database connection strings are specified via URLs. The URL format is driver dependent but generally has the form: `dbdriver://username:password@host:port/dbname?param1=true&param2=false`
 
-### 2. Generate Proto Code
+Any [reserved URL characters](https://en.wikipedia.org/wiki/Percent-encoding#Percent-encoding_reserved_characters) need to be escaped. Note, the `%` character also [needs to be escaped](https://en.wikipedia.org/wiki/Percent-encoding#Percent-encoding_the_percent_character)
 
-Generated code is not committed to the repository. Generate it after cloning:
+Explicitly, the following characters need to be escaped:
+`!`, `#`, `$`, `%`, `&`, `'`, `(`, `)`, `*`, `+`, `,`, `/`, `:`, `;`, `=`, `?`, `@`, `[`, `]`
 
-```bash
-make generate
-```
-
-This generates:
-- Go server code in `backend/internal/gen/`
-- TypeScript client code in `frontend/src/lib/gen/`
-- sqlc database code in `backend/internal/db/sqlc/`
-
-### 3. Start PostgreSQL
+It's easiest to always run the URL parts of your DB connection URL (e.g. username, password, etc) through an URL encoder. See the example Python snippets below:
 
 ```bash
-docker compose up -d
+$ python3 -c 'import urllib.parse; print(urllib.parse.quote(input("String to encode: "), ""))'
+String to encode: FAKEpassword!#$%&'()*+,/:;=?@[]
+FAKEpassword%21%23%24%25%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D
+$ python2 -c 'import urllib; print urllib.quote(raw_input("String to encode: "), "")'
+String to encode: FAKEpassword!#$%&'()*+,/:;=?@[]
+FAKEpassword%21%23%24%25%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D
+$
 ```
 
-This starts PostgreSQL on port 5432 and automatically runs the initial migration.
+## Migration Sources
 
-### 4. Start the Go Backend
+Source drivers read migrations from local or remote sources. [Add a new source?](source/driver.go)
+
+* [Filesystem](source/file) - read from filesystem
+* [io/fs](source/iofs) - read from a Go [io/fs](https://pkg.go.dev/io/fs#FS)
+* [Go-Bindata](source/go_bindata) - read from embedded binary data ([jteeuwen/go-bindata](https://github.com/jteeuwen/go-bindata))
+* [pkger](source/pkger) - read from embedded binary data ([markbates/pkger](https://github.com/markbates/pkger))
+* [GitHub](source/github) - read from remote GitHub repositories
+* [GitHub Enterprise](source/github_ee) - read from remote GitHub Enterprise repositories
+* [Bitbucket](source/bitbucket) - read from remote Bitbucket repositories
+* [Gitlab](source/gitlab) - read from remote Gitlab repositories
+* [AWS S3](source/aws_s3) - read from Amazon Web Services S3
+* [Google Cloud Storage](source/google_cloud_storage) - read from Google Cloud Platform Storage
+
+## CLI usage
+
+* Simple wrapper around this library.
+* Handles ctrl+c (SIGINT) gracefully.
+* No config search paths, no config files, no magic ENV var injections.
+
+[CLI Documentation](cmd/migrate) (includes CLI install instructions)
+
+### Basic usage
 
 ```bash
-cd backend
-go run .
+$ migrate -source file://path/to/migrations -database postgres://localhost:5432/database up 2
 ```
 
-The Connect RPC server runs on http://localhost:8080
-
-### 5. Start the Next.js Frontend
+### Docker usage
 
 ```bash
-cd frontend
-npm run dev
+$ docker run -v {{ migration dir }}:/migrations --network host migrate/migrate
+    -path=/migrations/ -database postgres://localhost:5432/database up 2
 ```
 
-The frontend runs on http://localhost:3000
+## Use in your Go project
 
-## Tech Stack
+* API is stable and frozen for this release (v3 & v4).
+* Uses [Go modules](https://golang.org/cmd/go/#hdr-Modules__module_versions__and_more) to manage dependencies.
+* To help prevent database corruptions, it supports graceful stops via `GracefulStop chan bool`.
+* Bring your own logger.
+* Uses `io.Reader` streams internally for low memory overhead.
+* Thread-safe and no goroutine leaks.
 
-- **Backend:** Go 1.24, Connect RPC, pgx (PostgreSQL driver)
-- **Database:** PostgreSQL 16, sqlc (type-safe queries)
-- **Frontend:** Next.js 15, React 18, Tailwind CSS, TypeScript
-- **RPC:** Connect (supports gRPC, gRPC-Web, and Connect protocols)
-- **Code Generation:** Buf, protoc-gen-go, protoc-gen-connect-go, protoc-gen-es
+__[Go Documentation](https://pkg.go.dev/github.com/golang-migrate/migrate/v4)__
 
-## Connect RPC
+```go
+import (
+    "github.com/golang-migrate/migrate/v4"
+    _ "github.com/golang-migrate/migrate/v4/database/postgres"
+    _ "github.com/golang-migrate/migrate/v4/source/github"
+)
 
-This project uses [Connect](https://connectrpc.com/) for type-safe RPC communication between the frontend and backend.
-
-### Service Definition
-
-All RPC methods are defined in `proto/api.proto`:
-
-```protobuf
-service RankingsService {
-  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
-  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
-  rpc ListCompanies(ListCompaniesRequest) returns (ListCompaniesResponse);
-  rpc GetCompany(GetCompanyRequest) returns (GetCompanyResponse);
-  rpc GetMatchup(GetMatchupRequest) returns (GetMatchupResponse);
-  rpc SubmitVote(SubmitVoteRequest) returns (SubmitVoteResponse);
-  rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
-  // ... more methods
+func main() {
+    m, err := migrate.New(
+        "github://mattes:personal-access-token@mattes/migrate_test",
+        "postgres://localhost:5432/database?sslmode=enable")
+    m.Steps(2)
 }
 ```
 
-### Generate Code
-
-After modifying `proto/api.proto`, regenerate the code:
-
-```bash
-make generate
-```
-
-This generates:
-- Go server code in `backend/internal/gen/`
-- TypeScript client code in `frontend/src/lib/gen/`
-- sqlc database code in `backend/internal/db/sqlc/`
-
-> **CI/CD Note:** Proto code is automatically generated during Railway builds via `nixpacks.toml`. Each service has its own `buf.gen.yaml` that generates only the code it needs.
-
-### Using the API
-
-**Backend (Go):**
+Want to use an existing database client?
 
 ```go
-// The service implementation in internal/service/rankings.go
-func (s *RankingsService) GetCompany(
-    ctx context.Context,
-    req *connect.Request[gen.GetCompanyRequest],
-) (*connect.Response[gen.GetCompanyResponse], error) {
-    company, err := s.queries.GetCompanyBySlug(ctx, req.Msg.Slug)
-    // ... handle response
+import (
+    "database/sql"
+    _ "github.com/lib/pq"
+    "github.com/golang-migrate/migrate/v4"
+    "github.com/golang-migrate/migrate/v4/database/postgres"
+    _ "github.com/golang-migrate/migrate/v4/source/file"
+)
+
+func main() {
+    db, err := sql.Open("postgres", "postgres://localhost:5432/database?sslmode=enable")
+    driver, err := postgres.WithInstance(db, &postgres.Config{})
+    m, err := migrate.NewWithDatabaseInstance(
+        "file:///migrations",
+        "postgres", driver)
+    m.Up() // or m.Steps(2) if you want to explicitly set the number of migrations to run
 }
 ```
 
-**Frontend (TypeScript):**
+## Getting started
 
-```typescript
-import { createClient } from "@connectrpc/connect";
-import { createConnectTransport } from "@connectrpc/connect-web";
-import { RankingsService } from "./gen/api_pb";
+Go to [getting started](GETTING_STARTED.md)
 
-const transport = createConnectTransport({ baseUrl: API_URL });
-const client = createClient(RankingsService, transport);
+## Tutorials
 
-// Type-safe RPC call
-const response = await client.getCompany({ slug: "openai" });
-console.log(response.company?.name);
-```
+* [CockroachDB](database/cockroachdb/TUTORIAL.md)
+* [PostgreSQL](database/postgres/TUTORIAL.md)
 
-## Database (sqlc)
+(more tutorials to come)
 
-Database queries are defined in SQL and compiled to type-safe Go code using [sqlc](https://sqlc.dev/).
+## Migration files
 
-### Query Definitions
-
-Queries are in `backend/internal/db/sqlc/queries.sql`:
-
-```sql
--- name: GetCompanyBySlug :one
-SELECT * FROM companies WHERE slug = $1;
-
--- name: ListCompanies :many
-SELECT * FROM companies ORDER BY elo_rating DESC;
-```
-
-### Generate sqlc Code
+Each migration has an up and down migration. [Why?](FAQ.md#why-two-separate-files-up-and-down-for-a-migration)
 
 ```bash
-cd backend && sqlc generate
+1481574547_create_users_table.up.sql
+1481574547_create_users_table.down.sql
 ```
 
-### Using sqlc in Code
+[Best practices: How to write migrations.](MIGRATIONS.md)
 
-```go
-// Type-safe database queries
-company, err := s.queries.GetCompanyBySlug(ctx, "openai")
-companies, err := s.queries.ListCompanies(ctx)
-```
+## Coming from another db migration tool?
 
-## Migrations
+Check out [migradaptor](https://github.com/musinit/migradaptor/).
+*Note: migradaptor is not affiliated or supported by this project*
 
-Migrations use the golang-migrate format in `backend/db/migrations/`.
+## Versions
 
-### Create a Migration
+Version | Supported? | Import | Notes
+--------|------------|--------|------
+**master** | :white_check_mark: | `import "github.com/golang-migrate/migrate/v4"` | New features and bug fixes arrive here first |
+**v4** | :white_check_mark: | `import "github.com/golang-migrate/migrate/v4"` | Used for stable releases |
+**v3** | :x: | `import "github.com/golang-migrate/migrate"` (with package manager) or `import "gopkg.in/golang-migrate/migrate.v3"` (not recommended) | **DO NOT USE** - No longer supported |
 
-```bash
-make migrate-create
-# Enter migration name when prompted
-```
+## Development and Contributing
 
-### Run Migrations
+Yes, please! [`Makefile`](Makefile) is your friend,
+read the [development guide](CONTRIBUTING.md).
 
-```bash
-export DATABASE_URL="postgres://postgres:postgres@localhost:5432/cloutgg?sslmode=disable"
-make migrate-up
-```
+Also have a look at the [FAQ](FAQ.md).
 
-### Rollback Migrations
+---
 
-```bash
-make migrate-down
-```
-
-## Development Commands
-
-| Command | Description |
-|---------|-------------|
-| `make install` | Install all dependencies |
-| `make generate` | Generate all code (proto + sqlc) |
-| `make dev` | Start all services |
-| `make test` | Run all tests |
-| `make clean` | Clean up containers and generated code |
-| `make lint-proto` | Lint proto files |
-
-## Environment Variables
-
-```bash
-# Database
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/cloutgg?sslmode=disable
-
-# Backend
-PORT=8080
-
-# Frontend
-NEXT_PUBLIC_API_URL=http://localhost:8080
-```
-
-## Deploy to Railway
-
-### 1. Push to GitHub
-
-```bash
-git add .
-git commit -m "Initial commit"
-gh repo create cloutdotgg --public --push
-```
-
-### 2. Deploy on Railway
-
-1. Go to [railway.app](https://railway.app) and sign in
-2. Create new project and add PostgreSQL
-3. Deploy backend with root directory `backend`
-4. Deploy frontend with root directory `frontend`
-5. Set environment variables accordingly
-
-> **Note:** Proto code generation happens automatically during builds. Each service's `nixpacks.toml` installs the `buf` CLI and runs `buf generate` before building. The proto files are copied from the parent directory during the build process.
-
-## Architecture
-
-```
-┌─────────────┐     Connect RPC      ┌─────────────┐
-│   Next.js   │ ◄──────────────────► │   Go API    │
-│  Frontend   │    (HTTP/2, JSON)    │   Server    │
-└─────────────┘                      └──────┬──────┘
-                                            │
-                                     ┌──────▼──────┐
-                                     │ PostgreSQL  │
-                                     │  Database   │
-                                     └─────────────┘
-```
-
-- **Frontend** uses Connect-Web client for type-safe RPC calls
-- **Backend** implements Connect handlers, uses sqlc for database access
-- **Database** managed with golang-migrate migrations
+Looking for alternatives? [https://awesome-go.com/#database](https://awesome-go.com/#database).
