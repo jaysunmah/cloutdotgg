@@ -25,11 +25,18 @@ RUN go mod download && \
 
 # Final stage
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates postgresql-client
+
+# Install ca-certificates, postgresql-client, and golang-migrate
+RUN apk --no-cache add ca-certificates postgresql-client curl && \
+    curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz && \
+    mv migrate /usr/local/bin/migrate && \
+    chmod +x /usr/local/bin/migrate
+
 WORKDIR /app
 
 COPY --from=builder /app/backend/server .
-COPY --from=builder /app/backend/migrations/ ./migrations/
+# Use the proper migrations directory with up/down migrations
+COPY --from=builder /app/backend/db/migrations/ ./migrations/
 COPY backend/start.sh .
 RUN chmod +x start.sh
 

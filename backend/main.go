@@ -79,7 +79,7 @@ func main() {
 			}
 			// Allow custom domain
 			if origin == "https://cloutdotgg.com" ||
-				origin == "https://www.cloutdotgg.com" {
+				origin == "https://app.cloutdotgg.com" {
 				return true
 			}
 			// Allow Railway and Vercel deployments
