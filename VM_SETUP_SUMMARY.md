@@ -1,145 +1,112 @@
-# VM Setup Complete! ✓
+# VM Setup Summary
 
-## What Was Installed
+## ✅ Installation Complete
 
-### Core Development Tools
-- ✅ **Docker** (v29.1.3) - Container runtime with VFS storage driver
-- ✅ **Buf CLI** (v1.47.2) - Protocol Buffer code generation
-- ✅ **sqlc** (v1.30.0) - Type-safe SQL code generation
-- ✅ **golang-migrate** (dev) - Database migration tool
-- ✅ **protoc-gen-go** (latest) - Go protobuf compiler plugin
+The VM has been successfully configured for CloutGG development. All dependencies have been installed and tested.
 
-### Pre-installed (Already on VM)
-- ✅ **Go** (v1.22.2)
-- ✅ **Node.js** (v22.21.1)
-- ✅ **npm** (v10.9.4)
+## Installed Software
 
-### Project Dependencies
-- ✅ Backend Go modules downloaded
-- ✅ Frontend npm packages installed (373 packages)
-- ✅ Protocol Buffer code generated
-- ✅ sqlc database code generated
+### Pre-existing Tools
+- **Go**: 1.22.2 (system installation)
+- **Node.js**: 22.21.1 (via nvm)
+- **npm**: 10.9.4
 
-## Configuration Applied
+### Newly Installed Tools
 
-1. **PATH updated** in `~/.bashrc` to include `~/go/bin`
-2. **Docker startup script** created at `/workspace/start-docker-daemon.sh`
-3. **PostgreSQL container** configured and tested (port 5434)
-4. **Database migrations** run successfully (3 migrations applied)
+1. **Docker**: 29.1.3
+   - Location: `/usr/bin/docker`
+   - Configuration: `/etc/docker/daemon.json` (using vfs storage driver)
+   - Note: Must be started manually with `./start-docker-daemon.sh`
+
+2. **Buf CLI**: 1.47.2
+   - Location: `/usr/local/bin/buf`
+   - Purpose: Protocol Buffer code generation
+
+3. **sqlc**: 1.27.0
+   - Location: `/usr/local/bin/sqlc`
+   - Purpose: Type-safe SQL query code generation
+
+4. **golang-migrate**: 4.18.1
+   - Location: `/usr/local/bin/migrate`
+   - Purpose: Database migration management
+
+5. **Go Tools** (installed via `go install`):
+   - `protoc-gen-go` (latest)
+   - `sqlc` (latest, as Go module)
+
+## Project Setup Status
+
+✅ **Backend Dependencies**: Installed via `go mod download`
+✅ **Frontend Dependencies**: Installed via `npm install`
+✅ **Generated Code**: All protobuf and sqlc code generated
+✅ **Database**: PostgreSQL image pulled, tested working
+✅ **Backend**: Builds and runs successfully
+✅ **Frontend**: Builds successfully with Next.js 15
 
 ## Quick Start Commands
 
-### Start Everything
+### First-time setup in a new session:
 ```bash
-# 1. Start Docker daemon (VM-specific requirement)
-./start-docker-daemon.sh
-
-# 2. Start PostgreSQL
-docker compose up -d
-
-# 3. Start backend (in one terminal)
-cd backend
-export DATABASE_URL="postgres://postgres:postgres@localhost:5434/cloutgg?sslmode=disable"
-go run .
-
-# 4. Start frontend (in another terminal)
-cd frontend
-npm run dev
+./start-docker-daemon.sh   # Start Docker daemon
+make install               # Install dependencies
+make generate             # Generate code
 ```
 
-### Access Points
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8080
-- PostgreSQL: localhost:5434
-
-## Verification Tests Passed ✓
-
-- [x] Docker daemon starts successfully
-- [x] PostgreSQL container runs and accepts connections
-- [x] Protocol Buffer code generation works
-- [x] sqlc code generation works
-- [x] Database migrations apply successfully
-- [x] Backend compiles and runs
-- [x] Frontend compiles and runs
-- [x] Go tests pass (no test files, but test runner works)
-- [x] TypeScript type checking passes
-- [x] Frontend linting passes
-
-## Important Notes
-
-### Docker Storage Driver
-This VM uses the VFS storage driver instead of overlay2 due to filesystem limitations. The `start-docker-daemon.sh` script handles this automatically.
-
-### No systemd
-The VM doesn't use systemd, so Docker must be started manually with the provided script.
-
-### Generated Code
-The following directories contain generated code and are ready to use:
-- `backend/internal/gen/` - Go protobuf and Connect RPC code
-- `frontend/src/lib/gen/` - TypeScript protobuf and Connect client code
-- `backend/internal/db/sqlc/` - Type-safe SQL query code
-
-### Go Version Auto-upgrade
-Some tools (sqlc, migrate) require Go 1.23+. The Go toolchain automatically uses Go 1.24.11 when running these tools.
-
-## Files Created
-
-1. `/workspace/start-docker-daemon.sh` - Docker startup helper script
-2. `/workspace/CLOUD.md` - Complete setup documentation (76 KB)
-3. `/workspace/VM_SETUP_SUMMARY.md` - This file
-
-## Next Steps for Snapshot
-
-Before taking the VM snapshot:
-1. Stop all running services:
-   ```bash
-   docker compose down
-   sudo pkill dockerd
-   pkill -f "go run"
-   pkill -f "next dev"
-   ```
-
-2. Verify critical files exist:
-   - `~/.bashrc` contains PATH update
-   - `backend/internal/gen/` has generated code
-   - `frontend/src/lib/gen/` has generated code
-   - `frontend/node_modules/` exists
-
-3. Take the snapshot!
-
-## Troubleshooting
-
-### Docker won't start
+### Start development:
 ```bash
-sudo rm -f /var/run/docker.pid
-./start-docker-daemon.sh
+docker compose up -d      # Start PostgreSQL
+cd backend && go run .    # Start backend (terminal 1)
+cd frontend && npm run dev # Start frontend (terminal 2)
 ```
 
-### Missing generated code
-```bash
-make generate
-```
+## Key Files Created
 
-### Database connection issues
-```bash
-docker compose down
-docker compose up -d
-sleep 5
-docker exec cloutgg-postgres pg_isready -U postgres
-```
+- **`/workspace/start-docker-daemon.sh`**: Helper script to start Docker daemon
+- **`/workspace/CLOUD.md`**: Comprehensive documentation of VM setup and workflows
+- **`/workspace/VM_SETUP_SUMMARY.md`**: This file
 
-## Complete Documentation
+## Configuration Files Modified
 
-See `/workspace/CLOUD.md` for comprehensive documentation including:
-- Detailed installation steps
-- Environment variables
-- All Makefile commands
-- Architecture overview
-- Development workflow
-- Known issues and workarounds
+- **`/etc/docker/daemon.json`**: Docker storage driver set to `vfs`
+
+## Tested and Verified
+
+✅ Go compilation works
+✅ Node.js/npm works
+✅ Docker daemon starts and runs containers
+✅ PostgreSQL container runs successfully
+✅ Buf code generation works
+✅ sqlc code generation works
+✅ Backend builds and connects to database
+✅ Frontend builds successfully
+✅ Type checking passes
+✅ Proto linting works
+
+## Snapshot Readiness
+
+The VM is ready to be snapshotted with:
+- ✅ All tools installed and verified
+- ✅ All dependencies downloaded
+- ✅ Generated code present
+- ✅ Docker daemon stopped (clean state)
+- ✅ No containers running
+- ✅ No temporary files
+
+## Next Steps After Restoring from Snapshot
+
+1. Start Docker daemon: `./start-docker-daemon.sh`
+2. Start PostgreSQL: `docker compose up -d`
+3. Run backend: `cd backend && go run .`
+4. Run frontend: `cd frontend && npm run dev`
+
+## Documentation
+
+For detailed information, see:
+- **CLOUD.md**: Complete VM setup and development guide
+- **README.md**: Project documentation
+- **Makefile**: Available make commands
 
 ---
 
-**Setup completed on:** December 16, 2025
-**VM Environment:** Linux (Ubuntu) with Docker VFS storage driver
-**Project:** CloutGG - Full-stack ranking application
+**Setup Date**: December 16, 2025
+**Setup Status**: ✅ Complete and Ready for Snapshot
