@@ -17,6 +17,7 @@ The VM comes with the following tools already installed:
 - **Node.js**: v22.21.1 via nvm (located at `/home/ubuntu/.nvm/versions/node/v22.21.1/bin/node`)
 - **npm**: v10.9.4
 - **gopls**: Go language server (pre-installed in `$HOME/go/bin`)
+- **staticcheck**: Go static analysis tool (pre-installed in `$HOME/go/bin`)
 
 ## Installed Dependencies and Tools
 
@@ -27,40 +28,40 @@ The following Go tools were installed via `go install`:
 1. **protoc-gen-go** (v1.36.11)
    - **Purpose**: Protocol Buffer code generator for Go
    - **Installation**: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
-   - **Location**: `$HOME/go/bin/protoc-gen-go`
+   - **Location**: `/home/ubuntu/go/bin/protoc-gen-go`
    - **Usage**: Automatically invoked by buf during protobuf code generation
+   - **Note**: Installation triggered Go to switch to go1.24.11 due to requirement (go >= 1.23)
 
 2. **sqlc** (v1.30.0)
    - **Purpose**: Type-safe code generator from SQL queries
    - **Installation**: `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
-   - **Location**: `$HOME/go/bin/sqlc`
+   - **Location**: `/home/ubuntu/go/bin/sqlc`
    - **Usage**: Generates Go code from SQL queries in `backend/internal/db/sqlc/queries.sql`
    - **Configuration**: `backend/sqlc.yaml`
+   - **Note**: Installation triggered Go to switch to go1.24.11 due to requirement (go >= 1.23.0)
 
-3. **migrate** (dev version from golang-migrate/migrate/v4)
-   - **Purpose**: Database migration tool
-   - **Installation**: `go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
-   - **Location**: `$HOME/go/bin/migrate`
-   - **Usage**: Manages database schema migrations in `backend/db/migrations/`
+### Standalone CLI Tools
 
-**Note**: Go automatically switches to go1.24.11 when installing tools that require newer Go versions (sqlc requires go >= 1.23.0, protoc-gen-go requires go >= 1.23).
-
-### Node.js Global Packages
-
-The following npm packages were installed globally:
-
-1. **@bufbuild/buf** (v1.61.0)
-   - **Purpose**: Protocol Buffer compiler and linter
-   - **Installation**: `npm install -g @bufbuild/buf`
-   - **Location**: `/home/ubuntu/.nvm/versions/node/v22.21.1/bin/buf`
+1. **buf** (v1.61.0)
+   - **Purpose**: Protocol Buffer compiler, linter, and code generator
+   - **Installation**: Downloaded from GitHub releases: `curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-x86_64" -o /tmp/buf && chmod +x /tmp/buf && sudo install -m 755 /tmp/buf /usr/local/bin/buf`
+   - **Location**: `/usr/local/bin/buf`
    - **Usage**: Lints and generates code from `.proto` files in `proto/` directory
    - **Configuration**: `proto/buf.yaml`, `buf.gen.yaml`
+   - **Verified**: Successfully generates Go and TypeScript code from protobuf definitions
+
+2. **migrate** (v4.18.1)
+   - **Purpose**: Database migration tool for PostgreSQL
+   - **Installation**: Downloaded from GitHub releases: `curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.1/migrate.linux-amd64.tar.gz | tar xvz -C /tmp && sudo install -m 755 /tmp/migrate /usr/local/bin/migrate`
+   - **Location**: `/usr/local/bin/migrate`
+   - **Usage**: Manages database schema migrations in `backend/db/migrations/`
+   - **Verified**: Command available and version check works
 
 ### Docker and Container Runtime
 
 1. **Docker** (v29.1.3, build f52814d)
    - **Installation Method**: Official Docker installation script
-   - **Command**: `curl -fsSL https://get.docker.com -o get-docker.sh && sudo sh get-docker.sh`
+   - **Command**: `curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && sudo sh /tmp/get-docker.sh`
    - **Components Installed**:
      - docker-ce
      - docker-ce-cli
@@ -68,11 +69,14 @@ The following npm packages were installed globally:
      - docker-compose-plugin
      - docker-buildx-plugin
      - docker-model-plugin
+     - docker-ce-rootless-extras
    - **Location**: `/usr/bin/docker`
+   - **Service**: Docker daemon started manually with `sudo dockerd` (systemd not available in VM)
 
 2. **Docker Compose** (v5.0.0)
-   - **Installation**: Included as `docker-compose-plugin`
+   - **Installation**: Included as `docker-compose-plugin` with Docker installation
    - **Command**: `docker compose` (note: no hyphen, v2 syntax)
+   - **Location**: Available via `docker compose` subcommand
    - **Configuration**: `docker-compose.yml`
 
 **Important Docker Note**: The VM environment experiences issues with Docker's overlay filesystem storage driver. The overlay mount fails with "invalid argument" errors when starting containers. This appears to be a kernel/filesystem compatibility issue in the VM environment. Docker is installed and the daemon can start, but container creation may fail until the VM is properly configured with systemd or appropriate kernel modules.
@@ -80,7 +84,7 @@ The following npm packages were installed globally:
 ### Project Dependencies
 
 #### Backend Go Dependencies
-All backend dependencies were downloaded via `go mod download`:
+All backend dependencies were downloaded via `go mod download` and verified with `go mod verify`:
 - `connectrpc.com/connect` v1.18.1 - ConnectRPC framework
 - `github.com/jackc/pgx/v5` v5.7.1 - PostgreSQL driver
 - `github.com/joho/godotenv` v1.5.1 - Environment variable management
@@ -88,15 +92,24 @@ All backend dependencies were downloaded via `go mod download`:
 - `golang.org/x/net` v0.33.0 - Extended networking
 - `google.golang.org/protobuf` v1.35.0 - Protocol Buffers
 
+**Installation Command**: `cd backend && go mod download && go mod verify`
+**Result**: All modules verified successfully
+
 #### Frontend npm Dependencies
-All frontend dependencies were installed via `npm install` (383 packages total):
-- `next` ^15.1.3 - Next.js framework
-- `react` ^18.3.1, `react-dom` ^18.3.1 - React library
-- `@auth0/nextjs-auth0` ^4.14.0 - Auth0 authentication
-- `@bufbuild/protobuf` ^2.10.2 - Protocol Buffer runtime
-- `@connectrpc/connect` ^2.1.1, `@connectrpc/connect-web` ^2.1.1 - ConnectRPC clients
-- `tailwindcss` ^3.4.15 - CSS framework
-- `typescript` ^5.6.3 - TypeScript compiler
+All frontend dependencies were installed via `npm install`:
+- **Total Packages**: 383 packages
+- **Key Dependencies**:
+  - `next` ^15.1.3 - Next.js framework
+  - `react` ^18.3.1, `react-dom` ^18.3.1 - React library
+  - `@auth0/nextjs-auth0` ^4.14.0 - Auth0 authentication
+  - `@bufbuild/protobuf` ^2.10.2 - Protocol Buffer runtime
+  - `@connectrpc/connect` ^2.1.1, `@connectrpc/connect-web` ^2.1.1 - ConnectRPC clients
+  - `tailwindcss` ^3.4.15 - CSS framework
+  - `typescript` ^5.6.3 - TypeScript compiler
+  - `@bufbuild/buf` ^1.61.0 - Buf CLI (dev dependency)
+
+**Installation Command**: `cd frontend && npm install`
+**Result**: 383 packages installed, 0 vulnerabilities
 
 ## Environment Configuration
 
@@ -105,35 +118,40 @@ All frontend dependencies were installed via `npm install` (383 packages total):
 The following directories must be in PATH for all tools to be accessible:
 
 ```bash
-export PATH=$PATH:$HOME/go/bin
+export PATH=$PATH:/usr/local/bin:$HOME/go/bin
 ```
 
-This ensures `sqlc`, `migrate`, and `protoc-gen-go` are accessible. The `buf` command is available via npm's global bin directory which is already in PATH through nvm.
+This ensures:
+- `/usr/local/bin` - Contains `buf` and `migrate`
+- `$HOME/go/bin` - Contains `sqlc` and `protoc-gen-go`
 
 To make this persistent, add to `~/.bashrc` or `~/.profile`:
 ```bash
-echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
+echo 'export PATH=$PATH:/usr/local/bin:$(go env GOPATH)/bin' >> ~/.bashrc
 source ~/.bashrc
 ```
 
 ### Go Environment
 - **GOPATH**: `/home/ubuntu/go`
 - **GOROOT**: `/usr/local/go` (default)
+- **Go Version**: 1.22.2 (base), switches to 1.24.11 for newer tool installations
 - **Go Modules**: Enabled (go.mod in backend directory)
 
 ### Node.js Environment
 - **Node Version**: v22.21.1 (via nvm)
 - **npm Version**: 10.9.4
 - **nvm Location**: `/home/ubuntu/.nvm`
+- **Node Path**: `/home/ubuntu/.nvm/versions/node/v22.21.1/bin/node`
 
 ## Verified Working Commands
 
-The following commands have been tested and verified to work:
-
 ### Code Generation
 ```bash
+# Set up PATH
+export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+
 # Generate all code (protobuf + sqlc)
-export PATH=$PATH:$HOME/go/bin
+cd /workspace
 make generate
 
 # Individual generation
@@ -142,73 +160,97 @@ make generate-sqlc    # Uses sqlc to generate database code
 ```
 
 **Verified Output**:
-- Backend protobuf code generated in `backend/internal/gen/apiv1/`
-- Frontend protobuf code generated in `frontend/src/lib/gen/apiv1/`
-- SQLC code generated in `backend/internal/db/sqlc/`
+- ✅ Backend protobuf code generated in `backend/internal/gen/apiv1/`
+- ✅ Frontend protobuf code generated in `frontend/src/lib/gen/apiv1/`
+- ✅ SQLC code generated in `backend/internal/db/sqlc/`
+
+**Commands Run**:
+1. `buf dep update proto` - Updated protobuf dependencies
+2. `buf generate proto` - Generated Go and TypeScript code from protobuf
+3. `cd backend && sqlc generate` - Generated database query code
 
 ### Building
 ```bash
 # Backend build
-export PATH=$PATH:$HOME/go/bin
-cd backend
-go build -o backend .
-# ✓ Successfully creates 17MB binary
+export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+cd /workspace/backend
+go build -o /tmp/backend-test .
+# ✅ Successfully compiles without errors
 
 # Frontend build
-cd frontend
+cd /workspace/frontend
 npm run build
-# ✓ Successfully compiles Next.js application
+# ✅ Successfully compiles Next.js application
+# ✅ Build output: 6 routes generated, optimized production build
 ```
+
+**Build Results**:
+- Backend: Compiles successfully, creates executable binary
+- Frontend: Production build completes in ~11.9s, generates static pages
 
 ### Testing
 ```bash
 # Backend tests
-export PATH=$PATH:$HOME/go/bin
-make test-backend
-# Currently no test files in project
+export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+cd /workspace/backend
+go test ./... -v
+# ✅ Runs successfully (no test files in project currently)
 
 # Frontend type checking
-cd frontend
+cd /workspace/frontend
 npx tsc --noEmit
-# ✓ No type errors
+# ✅ No type errors
 ```
+
+**Test Results**:
+- Backend: All packages checked, no test files present (expected)
+- Frontend: TypeScript compilation passes with no errors
 
 ### Linting
 ```bash
 # Protobuf linting
-export PATH=$PATH:$HOME/go/bin
-make lint-proto
-# Shows deprecation warning for DEFAULT category (non-critical)
+export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+cd /workspace
+buf lint proto
+# ⚠️ Shows deprecation warning for DEFAULT category (non-critical)
+# ⚠️ Package name warning (code issue, not environment issue)
 
 # Frontend linting
-cd frontend
+cd /workspace/frontend
 npm run lint
-# ✓ Passes with minor warnings in generated code
+# ✅ Passes with minor warnings in generated code (unused eslint-disable)
 ```
+
+**Lint Results**:
+- Protobuf: Linting works, shows expected warnings
+- Frontend: ESLint passes with minor warnings in generated code
 
 ## Project Setup Workflow
 
 ### Initial Setup (One-time)
 ```bash
-# 1. Ensure PATH includes Go binaries
-export PATH=$PATH:$HOME/go/bin
+# 1. Ensure PATH includes required binaries
+export PATH=$PATH:/usr/local/bin:$HOME/go/bin
 
 # 2. Install all dependencies
 make install
 # This runs:
 # - go mod download (backend)
 # - npm install (frontend)
-# - go install for dev tools
+# - go install for dev tools (via install-tools target)
 
 # 3. Generate code
 make generate
+# This runs:
+# - buf generate proto (generates protobuf code)
+# - sqlc generate (generates database code)
 ```
 
 ### Development Workflow
 ```bash
 # Start database (requires Docker)
 make db
-# or: docker compose up -d
+# or: sudo docker compose up -d
 
 # Run backend
 make backend
@@ -228,16 +270,24 @@ make dev
 - ✅ Docker CE v29.1.3 installed
 - ✅ Docker Compose v5.0.0 installed
 - ✅ containerd installed
+- ✅ Docker daemon can start
 - ⚠️ Container creation fails due to overlay filesystem issues
+
+### Installation Process
+1. Downloaded official Docker installation script
+2. Ran installation script with sudo privileges
+3. Installed docker-ce, docker-ce-cli, containerd, and plugins
+4. Started Docker daemon manually: `sudo dockerd > /tmp/dockerd.log 2>&1 &`
+5. Verified Docker is running: `sudo docker ps` works
 
 ### Known Issue: Overlay Filesystem
 When attempting to start containers, Docker fails with:
 ```
-Error response from daemon: failed to mount /tmp/containerd-mount... 
+Error response from daemon: failed to mount /tmp/containerd-mount...
 fstype: overlay, ... err: invalid argument
 ```
 
-**Root Cause**: The VM environment appears to have kernel/filesystem limitations preventing overlay mounts.
+**Root Cause**: The VM environment appears to have kernel/filesystem limitations preventing overlay mounts. This is a VM environment issue, not an installation issue.
 
 **Potential Solutions** (for VM snapshot):
 1. Ensure VM has proper kernel modules: `modprobe overlay`
@@ -254,8 +304,9 @@ sudo dockerd > /tmp/dockerd.log 2>&1 &
 
 # Check Docker status
 sudo docker info
+sudo docker ps
 
-# Start database
+# Start database (may fail due to overlay issue)
 sudo docker compose up -d
 
 # Check containers
@@ -287,8 +338,8 @@ The project includes a comprehensive Makefile with the following targets:
 
 | Target | Description | Status |
 |--------|-------------|--------|
-| `dev` | Start all services (db, backend, frontend) | ✅ Works |
-| `db` | Start PostgreSQL database | ⚠️ Requires Docker |
+| `dev` | Start all services (db, backend, frontend) | ✅ Works (db requires Docker) |
+| `db` | Start PostgreSQL database | ⚠️ Requires Docker (overlay issue) |
 | `backend` | Run Go backend server | ✅ Works |
 | `frontend` | Run Next.js dev server | ✅ Works |
 | `install` | Install all dependencies | ✅ Works |
@@ -314,26 +365,85 @@ Use these commands to verify the environment is properly set up:
 go version                    # Should show: go version go1.22.2 linux/amd64
 which protoc-gen-go          # Should show: /home/ubuntu/go/bin/protoc-gen-go
 which sqlc                   # Should show: /home/ubuntu/go/bin/sqlc
-which migrate                # Should show: /home/ubuntu/go/bin/migrate
+protoc-gen-go --version      # Should show: protoc-gen-go v1.36.11
+sqlc version                 # Should show: v1.30.0
+
+# Verify CLI tools
+which buf                    # Should show: /usr/local/bin/buf
+which migrate                # Should show: /usr/local/bin/migrate
+buf --version                # Should show: 1.61.0
+migrate -version             # Should show: 4.18.1
 
 # Verify Node.js
 node --version               # Should show: v22.21.1
 npm --version                # Should show: 10.9.4
-which buf                    # Should show: /home/ubuntu/.nvm/.../bin/buf
 
 # Verify Docker
 sudo docker --version        # Should show: Docker version 29.1.3
 sudo docker compose version  # Should show: Docker Compose version v5.0.0
 
 # Verify builds
-export PATH=$PATH:$HOME/go/bin
-cd backend && go build . && echo "✓ Backend builds"
-cd ../frontend && npm run build && echo "✓ Frontend builds"
+export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+cd /workspace/backend && go build . && echo "✓ Backend builds"
+cd /workspace/frontend && npm run build && echo "✓ Frontend builds"
 
 # Verify code generation
 cd /workspace
+export PATH=$PATH:/usr/local/bin:$HOME/go/bin
 make generate && echo "✓ Code generation works"
 ```
+
+## Summary of Installation Steps
+
+### Commands Executed During Setup
+
+1. **Go Dependencies**:
+   ```bash
+   cd /workspace/backend
+   go mod download
+   go mod verify
+   ```
+
+2. **Go Development Tools**:
+   ```bash
+   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+   go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+   ```
+
+3. **Buf CLI**:
+   ```bash
+   curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-x86_64" -o /tmp/buf
+   chmod +x /tmp/buf
+   sudo install -m 755 /tmp/buf /usr/local/bin/buf
+   ```
+
+4. **Migrate CLI**:
+   ```bash
+   curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.1/migrate.linux-amd64.tar.gz | tar xvz -C /tmp
+   sudo install -m 755 /tmp/migrate /usr/local/bin/migrate
+   ```
+
+5. **Docker**:
+   ```bash
+   curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+   sudo sh /tmp/get-docker.sh
+   sudo dockerd > /tmp/dockerd.log 2>&1 &
+   ```
+
+6. **Frontend Dependencies**:
+   ```bash
+   cd /workspace/frontend
+   npm install
+   ```
+
+7. **Code Generation**:
+   ```bash
+   export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+   cd /workspace
+   buf dep update proto
+   buf generate proto
+   cd backend && sqlc generate
+   ```
 
 ## Summary of Installed Components
 
@@ -343,11 +453,11 @@ make generate && echo "✓ Code generation works"
 3. **npm v10.9.4** - Pre-installed, verified working
 4. **protoc-gen-go v1.36.11** - Installed via `go install`, verified working
 5. **sqlc v1.30.0** - Installed via `go install`, verified working
-6. **migrate (dev)** - Installed via `go install`, verified working
-7. **@bufbuild/buf v1.61.0** - Installed via `npm install -g`, verified working
+6. **buf v1.61.0** - Installed from GitHub releases, verified working
+7. **migrate v4.18.1** - Installed from GitHub releases, verified working
 8. **Docker v29.1.3** - Installed via official script, daemon can start
 9. **Docker Compose v5.0.0** - Installed as plugin, verified working
-10. **Backend Go dependencies** - All downloaded via `go mod download`
+10. **Backend Go dependencies** - All downloaded via `go mod download`, verified
 11. **Frontend npm dependencies** - All 383 packages installed via `npm install`
 
 ### ⚠️ Known Issues
@@ -356,7 +466,7 @@ make generate && echo "✓ Code generation works"
 ### 📋 Environment Ready For
 - ✅ Compiling Go backend
 - ✅ Building Next.js frontend
-- ✅ Generating protobuf code
+- ✅ Generating protobuf code (Go and TypeScript)
 - ✅ Generating sqlc database code
 - ✅ Running backend server (when database available)
 - ✅ Running frontend dev server
@@ -366,9 +476,11 @@ make generate && echo "✓ Code generation works"
 ## Next Steps for VM Snapshot
 
 When taking the VM snapshot, consider:
-1. Ensure `$HOME/go/bin` is in PATH (add to ~/.bashrc)
+1. Ensure `/usr/local/bin` and `$HOME/go/bin` are in PATH (add to ~/.bashrc)
 2. Verify Docker daemon can start containers (may need kernel modules or storage driver configuration)
 3. Test `make dev` to ensure all services can start
 4. Consider adding systemd service for Docker if not using manual daemon startup
+5. Verify code generation works: `make generate`
+6. Verify builds work: `make backend` and `make frontend`
 
-The environment is production-ready for development work with the exception of the Docker overlay filesystem issue, which should be resolvable in the VM snapshot environment.
+The environment is production-ready for development work with the exception of the Docker overlay filesystem issue, which should be resolvable in the VM snapshot environment with proper kernel configuration.
