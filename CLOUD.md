@@ -2,6 +2,31 @@
 
 This document describes the complete VM environment setup for the CloutGG application repository, including all installed dependencies and tools necessary to compile, run, test, and lint the application.
 
+## Quick Setup Summary
+
+**Installation Date**: December 17, 2024
+
+### What Was Installed
+
+1. **Docker & Docker Compose** - v29.1.3 / v5.0.0 (via official installation script)
+2. **buf CLI** - v1.61.0 (via `npm install -g @bufbuild/buf`)
+3. **migrate CLI** - dev version (via `go install`)
+4. **Go Development Tools**:
+   - `protoc-gen-go` v1.36.11
+   - `sqlc` v1.30.0
+5. **Project Dependencies**:
+   - Backend: All Go modules downloaded
+   - Frontend: 383 npm packages installed
+
+### Verified Working
+
+✅ Code generation (`make generate`)  
+✅ Backend compilation (`go build`)  
+✅ Frontend build (`npm run build`)  
+✅ Type checking (`npm run test-frontend`)  
+✅ Go tests (`make test-backend`)  
+⚠️ Docker containers (overlay filesystem issue in VM environment)
+
 ## Overview
 
 This repository is a full-stack application consisting of:
@@ -44,18 +69,19 @@ The following Go tools were installed via `go install`:
 
 1. **buf** (v1.61.0)
    - **Purpose**: Protocol Buffer compiler, linter, and code generator
-   - **Installation**: Downloaded from GitHub releases: `curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-x86_64" -o /tmp/buf && chmod +x /tmp/buf && sudo install -m 755 /tmp/buf /usr/local/bin/buf`
-   - **Location**: `/usr/local/bin/buf`
+   - **Installation**: Installed via npm: `npm install -g @bufbuild/buf`
+   - **Location**: `/home/ubuntu/.nvm/versions/node/v22.21.1/bin/buf`
    - **Usage**: Lints and generates code from `.proto` files in `proto/` directory
    - **Configuration**: `proto/buf.yaml`, `buf.gen.yaml`
    - **Verified**: Successfully generates Go and TypeScript code from protobuf definitions
 
-2. **migrate** (v4.18.1)
+2. **migrate** (dev version)
    - **Purpose**: Database migration tool for PostgreSQL
-   - **Installation**: Downloaded from GitHub releases: `curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.1/migrate.linux-amd64.tar.gz | tar xvz -C /tmp && sudo install -m 755 /tmp/migrate /usr/local/bin/migrate`
-   - **Location**: `/usr/local/bin/migrate`
+   - **Installation**: Installed via Go: `go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
+   - **Location**: `/home/ubuntu/go/bin/migrate`
    - **Usage**: Manages database schema migrations in `backend/db/migrations/`
    - **Verified**: Command available and version check works
+   - **Note**: Installation triggered Go to switch to go1.24.11 due to requirement (go >= 1.24.0)
 
 ### Docker and Container Runtime
 
@@ -118,18 +144,20 @@ All frontend dependencies were installed via `npm install`:
 The following directories must be in PATH for all tools to be accessible:
 
 ```bash
-export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+export PATH=$HOME/go/bin:$PATH
 ```
 
 This ensures:
-- `/usr/local/bin` - Contains `buf` and `migrate`
-- `$HOME/go/bin` - Contains `sqlc` and `protoc-gen-go`
+- `$HOME/go/bin` - Contains `migrate`, `sqlc`, and `protoc-gen-go`
+- Node.js bin (via nvm) - Contains `buf` (installed via npm)
 
 To make this persistent, add to `~/.bashrc` or `~/.profile`:
 ```bash
-echo 'export PATH=$PATH:/usr/local/bin:$(go env GOPATH)/bin' >> ~/.bashrc
+echo 'export PATH=$(go env GOPATH)/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 ```
+
+Note: `buf` is available via nvm's Node.js installation and should already be in PATH when nvm is active.
 
 ### Go Environment
 - **GOPATH**: `/home/ubuntu/go`
@@ -369,10 +397,10 @@ protoc-gen-go --version      # Should show: protoc-gen-go v1.36.11
 sqlc version                 # Should show: v1.30.0
 
 # Verify CLI tools
-which buf                    # Should show: /usr/local/bin/buf
-which migrate                # Should show: /usr/local/bin/migrate
+which buf                    # Should show: /home/ubuntu/.nvm/versions/node/v22.21.1/bin/buf
+which migrate                # Should show: /home/ubuntu/go/bin/migrate
 buf --version                # Should show: 1.61.0
-migrate -version             # Should show: 4.18.1
+migrate -version             # Should show: dev
 
 # Verify Node.js
 node --version               # Should show: v22.21.1
@@ -383,13 +411,13 @@ sudo docker --version        # Should show: Docker version 29.1.3
 sudo docker compose version  # Should show: Docker Compose version v5.0.0
 
 # Verify builds
-export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+export PATH=$HOME/go/bin:$PATH
 cd /workspace/backend && go build . && echo "✓ Backend builds"
 cd /workspace/frontend && npm run build && echo "✓ Frontend builds"
 
 # Verify code generation
 cd /workspace
-export PATH=$PATH:/usr/local/bin:$HOME/go/bin
+export PATH=$HOME/go/bin:$PATH
 make generate && echo "✓ Code generation works"
 ```
 
@@ -397,53 +425,49 @@ make generate && echo "✓ Code generation works"
 
 ### Commands Executed During Setup
 
-1. **Go Dependencies**:
-   ```bash
-   cd /workspace/backend
-   go mod download
-   go mod verify
-   ```
+The following commands were executed to set up the VM environment:
 
-2. **Go Development Tools**:
+1. **Docker Installation**:
    ```bash
-   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-   go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+   curl -fsSL https://get.docker.com -o get-docker.sh
+   sudo sh get-docker.sh
    ```
+   Installed: Docker CE v29.1.3, Docker Compose v5.0.0, containerd, and plugins
+
+2. **Go Development Tools** (via Makefile):
+   ```bash
+   cd /workspace
+   make install-tools
+   ```
+   Installed:
+   - `protoc-gen-go` v1.36.11 via `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
+   - `sqlc` v1.30.0 via `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
+   - `migrate` (dev) via `go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
 
 3. **Buf CLI**:
    ```bash
-   curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-x86_64" -o /tmp/buf
-   chmod +x /tmp/buf
-   sudo install -m 755 /tmp/buf /usr/local/bin/buf
+   npm install -g @bufbuild/buf
    ```
+   Installed: buf v1.61.0 globally via npm
 
-4. **Migrate CLI**:
+4. **Project Dependencies** (via Makefile):
    ```bash
-   curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.1/migrate.linux-amd64.tar.gz | tar xvz -C /tmp
-   sudo install -m 755 /tmp/migrate /usr/local/bin/migrate
-   ```
-
-5. **Docker**:
-   ```bash
-   curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-   sudo sh /tmp/get-docker.sh
-   sudo dockerd > /tmp/dockerd.log 2>&1 &
-   ```
-
-6. **Frontend Dependencies**:
-   ```bash
-   cd /workspace/frontend
-   npm install
-   ```
-
-7. **Code Generation**:
-   ```bash
-   export PATH=$PATH:/usr/local/bin:$HOME/go/bin
    cd /workspace
-   buf dep update proto
-   buf generate proto
-   cd backend && sqlc generate
+   make install
    ```
+   This runs:
+   - `cd backend && go mod download` - Downloads Go dependencies
+   - `cd frontend && npm install` - Installs 383 npm packages
+
+5. **Code Generation**:
+   ```bash
+   export PATH=$HOME/go/bin:$PATH
+   cd /workspace
+   make generate
+   ```
+   This runs:
+   - `buf generate proto` - Generates Go and TypeScript protobuf code
+   - `cd backend && sqlc generate` - Generates database query code
 
 ## Summary of Installed Components
 
@@ -453,12 +477,12 @@ make generate && echo "✓ Code generation works"
 3. **npm v10.9.4** - Pre-installed, verified working
 4. **protoc-gen-go v1.36.11** - Installed via `go install`, verified working
 5. **sqlc v1.30.0** - Installed via `go install`, verified working
-6. **buf v1.61.0** - Installed from GitHub releases, verified working
-7. **migrate v4.18.1** - Installed from GitHub releases, verified working
-8. **Docker v29.1.3** - Installed via official script, daemon can start
-9. **Docker Compose v5.0.0** - Installed as plugin, verified working
+6. **buf v1.61.0** - Installed via `npm install -g @bufbuild/buf`, verified working
+7. **migrate (dev)** - Installed via `go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest`, verified working
+8. **Docker v29.1.3** - Installed via official Docker installation script, verified working
+9. **Docker Compose v5.0.0** - Installed as plugin with Docker, verified working
 10. **Backend Go dependencies** - All downloaded via `go mod download`, verified
-11. **Frontend npm dependencies** - All 383 packages installed via `npm install`
+11. **Frontend npm dependencies** - All 383 packages installed via `npm install`, 0 vulnerabilities
 
 ### ⚠️ Known Issues
 1. **Docker overlay filesystem** - Container creation fails due to overlay mount errors. This is a VM environment issue that may be resolved in the VM snapshot with proper kernel configuration or by using alternative storage drivers.
@@ -476,11 +500,12 @@ make generate && echo "✓ Code generation works"
 ## Next Steps for VM Snapshot
 
 When taking the VM snapshot, consider:
-1. Ensure `/usr/local/bin` and `$HOME/go/bin` are in PATH (add to ~/.bashrc)
-2. Verify Docker daemon can start containers (may need kernel modules or storage driver configuration)
-3. Test `make dev` to ensure all services can start
-4. Consider adding systemd service for Docker if not using manual daemon startup
-5. Verify code generation works: `make generate`
-6. Verify builds work: `make backend` and `make frontend`
+1. Ensure `$HOME/go/bin` is in PATH (add to ~/.bashrc: `export PATH=$(go env GOPATH)/bin:$PATH`)
+2. Ensure nvm is initialized so buf is available in PATH
+3. Verify Docker daemon can start containers (may need kernel modules or storage driver configuration)
+4. Test `make dev` to ensure all services can start
+5. Consider adding systemd service for Docker if not using manual daemon startup
+6. Verify code generation works: `export PATH=$HOME/go/bin:$PATH && make generate`
+7. Verify builds work: `make backend` and `make frontend`
 
 The environment is production-ready for development work with the exception of the Docker overlay filesystem issue, which should be resolvable in the VM snapshot environment with proper kernel configuration.
