@@ -4,7 +4,7 @@ This document describes the complete VM environment setup for the CloutGG applic
 
 ## Quick Setup Summary
 
-**Installation Date**: December 17, 2024
+**Installation Date**: December 17, 2025
 
 ### What Was Installed
 
@@ -27,6 +27,7 @@ This document describes the complete VM environment setup for the CloutGG applic
 ✅ Go tests (`make test-backend`)  
 ✅ Protobuf linting (`buf lint`)  
 ✅ Frontend linting (`npm run lint`)  
+✅ Frontend dev server starts successfully  
 ⚠️ Docker containers (overlay filesystem issue in VM environment - kernel module not available)
 
 ## Overview
@@ -69,7 +70,7 @@ The following Go tools were installed via `go install`:
 
 3. **migrate** (dev version)
    - **Purpose**: Database migration tool for PostgreSQL
-   - **Installation**: `go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
+   - **Installation**: `go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
    - **Location**: `/home/ubuntu/go/bin/migrate`
    - **Usage**: Manages database schema migrations in `backend/db/migrations/`
    - **Verified**: Command available and version check works
@@ -89,7 +90,7 @@ The following Go tools were installed via `go install`:
 
 1. **Docker** (v29.1.3, build f52814d)
    - **Installation Method**: Official Docker installation script
-   - **Command**: `curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && sudo sh /tmp/get-docker.sh`
+   - **Command**: `curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh`
    - **Components Installed**:
      - docker-ce
      - docker-ce-cli
@@ -154,11 +155,7 @@ This ensures:
 - `$HOME/go/bin` - Contains `migrate`, `sqlc`, and `protoc-gen-go`
 - Node.js bin (via nvm) - Contains `buf` (installed via npm)
 
-To make this persistent, add to `~/.bashrc` or `~/.profile`:
-```bash
-echo 'export PATH=$(go env GOPATH)/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-```
+**Configuration Applied**: Added `export PATH=$HOME/go/bin:$PATH` to `~/.bashrc` for persistence.
 
 Note: `buf` is available via nvm's Node.js installation and should already be in PATH when nvm is active.
 
@@ -207,8 +204,8 @@ make generate-sqlc    # Uses sqlc to generate database code
 # Backend build
 export PATH=$PATH:$HOME/go/bin
 cd /workspace/backend
-go build -o /tmp/backend-test .
-# ✅ Successfully compiles without errors
+go build -o backend .
+# ✅ Successfully compiles without errors, creates 17MB binary
 
 # Frontend build
 cd /workspace/frontend
@@ -218,7 +215,7 @@ npm run build
 ```
 
 **Build Results**:
-- Backend: Compiles successfully, creates executable binary
+- Backend: Compiles successfully, creates executable binary (~17MB)
 - Frontend: Production build completes, generates static pages with warnings about Edge Runtime (expected)
 
 ### Testing
@@ -257,6 +254,21 @@ npm run lint
 **Lint Results**:
 - Protobuf: Linting works, shows expected warnings about deprecated DEFAULT category and package naming
 - Frontend: ESLint passes with minor warnings in generated code
+
+### Running Services
+```bash
+# Backend server
+export PATH=$PATH:$HOME/go/bin
+cd /workspace/backend
+go run .
+# ✅ Server starts on port 8080 (default)
+
+# Frontend dev server
+cd /workspace/frontend
+npm run dev
+# ✅ Next.js dev server starts on http://localhost:3000
+# ✅ Ready in ~1.3s
+```
 
 ## Project Setup Workflow
 
@@ -308,10 +320,10 @@ make dev
 - ⚠️ Container creation fails due to overlay filesystem issues (kernel module not available)
 
 ### Installation Process
-1. Downloaded official Docker installation script
-2. Ran installation script with sudo privileges
+1. Downloaded official Docker installation script: `curl -fsSL https://get.docker.com -o get-docker.sh`
+2. Ran installation script with sudo privileges: `sh get-docker.sh`
 3. Installed docker-ce, docker-ce-cli, containerd, and plugins
-4. Started Docker daemon manually: `sudo dockerd > /tmp/dockerd.log 2>&1 &`
+4. Started Docker daemon manually: `sudo dockerd &` (systemd not available in VM)
 5. Verified Docker is running: `sudo docker ps` works
 
 ### Known Issue: Overlay Filesystem
@@ -396,6 +408,9 @@ The project includes a comprehensive Makefile with the following targets:
 Use these commands to verify the environment is properly set up:
 
 ```bash
+# Set up PATH
+export PATH=$HOME/go/bin:$PATH
+
 # Verify Go
 go version                    # Should show: go version go1.22.2 linux/amd64
 which protoc-gen-go          # Should show: /home/ubuntu/go/bin/protoc-gen-go
@@ -418,13 +433,11 @@ sudo docker --version        # Should show: Docker version 29.1.3
 sudo docker compose version  # Should show: Docker Compose version v5.0.0
 
 # Verify builds
-export PATH=$HOME/go/bin:$PATH
 cd /workspace/backend && go build . && echo "✓ Backend builds"
 cd /workspace/frontend && npm run build && echo "✓ Frontend builds"
 
 # Verify code generation
 cd /workspace
-export PATH=$HOME/go/bin:$PATH
 make generate && echo "✓ Code generation works"
 ```
 
@@ -436,21 +449,23 @@ The following commands were executed to set up the VM environment:
 
 1. **Docker Installation**:
    ```bash
-   curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-   sudo sh /tmp/get-docker.sh
+   curl -fsSL https://get.docker.com -o get-docker.sh
+   sh get-docker.sh
    ```
    Installed: Docker CE v29.1.3, Docker Compose v5.0.0, containerd, and plugins
+   Started daemon: `sudo dockerd &`
 
-2. **Go Development Tools** (via Makefile):
+2. **Go Development Tools**:
    ```bash
-   cd /workspace
    export PATH=$HOME/go/bin:$PATH
-   make install-tools
+   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+   go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+   go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
    ```
    Installed:
-   - `protoc-gen-go` v1.36.11 via `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
-   - `sqlc` v1.30.0 via `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
-   - `migrate` (dev) via `go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
+   - `protoc-gen-go` v1.36.11
+   - `sqlc` v1.30.0
+   - `migrate` (dev)
 
 3. **Buf CLI**:
    ```bash
@@ -458,30 +473,29 @@ The following commands were executed to set up the VM environment:
    ```
    Installed: buf v1.61.0 globally via npm
 
-4. **Project Dependencies** (via Makefile):
+4. **Project Dependencies**:
    ```bash
-   cd /workspace
-   make install
+   cd /workspace/backend && go mod download
+   cd /workspace/frontend && npm install
    ```
-   This runs:
-   - `cd backend && go mod download` - Downloads Go dependencies
-   - `cd frontend && npm install` - Installs 384 npm packages
+   - Backend: All Go modules downloaded and verified
+   - Frontend: 384 npm packages installed
 
 5. **Code Generation**:
    ```bash
    export PATH=$HOME/go/bin:$PATH
    cd /workspace
-   make generate
+   buf dep update proto
+   buf generate proto
+   cd backend && sqlc generate
    ```
-   This runs:
-   - `buf generate proto` - Generates Go and TypeScript protobuf code
-   - `cd backend && sqlc generate` - Generates database query code
+   Generated protobuf and sqlc code successfully
 
-6. **Docker Daemon Start**:
+6. **PATH Configuration**:
    ```bash
-   sudo dockerd > /tmp/dockerd.log 2>&1 &
+   echo 'export PATH=$HOME/go/bin:$PATH' >> ~/.bashrc
    ```
-   Started Docker daemon manually (systemd not available)
+   Made PATH configuration persistent
 
 ## Summary of Installed Components
 
@@ -492,7 +506,7 @@ The following commands were executed to set up the VM environment:
 4. **protoc-gen-go v1.36.11** - Installed via `go install`, verified working
 5. **sqlc v1.30.0** - Installed via `go install`, verified working
 6. **buf v1.61.0** - Installed via `npm install -g @bufbuild/buf`, verified working
-7. **migrate (dev)** - Installed via `go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest`, verified working
+7. **migrate (dev)** - Installed via `go install`, verified working
 8. **Docker v29.1.3** - Installed via official Docker installation script, daemon starts successfully
 9. **Docker Compose v5.0.0** - Installed as plugin with Docker, verified working
 10. **Backend Go dependencies** - All downloaded via `go mod download`, verified
@@ -511,16 +525,85 @@ The following commands were executed to set up the VM environment:
 - ✅ Type checking and linting
 - ⚠️ Running Docker containers (overlay issue needs resolution)
 
+## Installation Summary by Task
+
+### Task 1: Docker Installation ✅
+**Summary**: Installed Docker CE v29.1.3 and Docker Compose v5.0.0 using the official Docker installation script. Docker daemon starts successfully. Container creation fails due to overlay filesystem kernel module not being available in the VM environment.
+
+**Commands Run**:
+- `curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh`
+- `sudo dockerd &` (started daemon)
+- Verified: `sudo docker --version`, `sudo docker compose version`
+
+### Task 2: buf CLI Installation ✅
+**Summary**: Installed buf v1.61.0 globally via npm. Successfully generates protobuf code for both Go backend and TypeScript frontend.
+
+**Commands Run**:
+- `npm install -g @bufbuild/buf`
+- Verified: `buf --version`, `buf generate proto`, `buf lint proto`
+
+### Task 3: sqlc Installation ✅
+**Summary**: Installed sqlc v1.30.0 via `go install`. Successfully generates type-safe Go code from SQL queries.
+
+**Commands Run**:
+- `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
+- Verified: `sqlc version`, `cd backend && sqlc generate`
+
+### Task 4: golang-migrate Installation ✅
+**Summary**: Installed migrate (dev version) with PostgreSQL support via `go install`. Tool is available for database migrations.
+
+**Commands Run**:
+- `go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
+- Verified: `migrate -version`
+
+### Task 5: Go Protobuf Plugins ✅
+**Summary**: Installed protoc-gen-go v1.36.11 via `go install`. Automatically used by buf during code generation.
+
+**Commands Run**:
+- `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
+- Verified: `protoc-gen-go --version`, code generation works
+
+### Task 6: Backend Setup ✅
+**Summary**: Downloaded all Go module dependencies and generated required code (protobuf and sqlc). Backend compiles successfully.
+
+**Commands Run**:
+- `cd backend && go mod download`
+- `go mod verify` (all modules verified)
+- `buf generate proto` (generated protobuf code)
+- `cd backend && sqlc generate` (generated database code)
+- `go build -o backend .` (successful compilation)
+
+### Task 7: Frontend Setup ✅
+**Summary**: Installed 384 npm packages. Frontend builds successfully, dev server starts, linting and type checking work.
+
+**Commands Run**:
+- `cd frontend && npm install` (384 packages, 0 vulnerabilities)
+- `npm run prebuild` (generates protobuf code)
+- `npm run build` (successful production build)
+- `npm run dev` (dev server starts on port 3000)
+- `npx tsc --noEmit` (no type errors)
+- `npm run lint` (passes with minor warnings)
+
+### Task 8: Testing Commands ✅
+**Summary**: Verified compilation, linting, and test commands work correctly for both backend and frontend.
+
+**Commands Tested**:
+- `make test-backend` - Go tests run (no test files)
+- `make test-frontend` - TypeScript type checking passes
+- `make generate` - Code generation works
+- `go vet ./...` - No issues
+- `npm run lint` - Passes with minor warnings
+- `buf lint proto` - Works with expected warnings
+
 ## Next Steps for VM Snapshot
 
 When taking the VM snapshot, consider:
-1. Ensure `$HOME/go/bin` is in PATH (add to ~/.bashrc: `export PATH=$(go env GOPATH)/bin:$PATH`)
-2. Ensure nvm is initialized so buf is available in PATH
-3. Verify Docker daemon can start containers (may need kernel modules or storage driver configuration)
-4. Test `make dev` to ensure all services can start
-5. Consider adding systemd service for Docker if not using manual daemon startup
-6. Verify code generation works: `export PATH=$HOME/go/bin:$PATH && make generate`
-7. Verify builds work: `make backend` and `make frontend`
-8. **Critical**: Ensure overlay kernel module is available or configure alternative Docker storage driver
+1. ✅ `$HOME/go/bin` is in PATH (added to ~/.bashrc)
+2. ✅ nvm is initialized so buf is available in PATH
+3. ⚠️ Verify Docker daemon can start containers (may need kernel modules or storage driver configuration)
+4. ✅ Test `make generate` to ensure code generation works
+5. ✅ Test `make backend` and `make frontend` to ensure builds work
+6. **Critical**: Ensure overlay kernel module is available or configure alternative Docker storage driver
+7. Consider adding systemd service for Docker if not using manual daemon startup
 
 The environment is production-ready for development work with the exception of the Docker overlay filesystem issue, which should be resolvable in the VM snapshot environment with proper kernel configuration.
