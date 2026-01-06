@@ -8,6 +8,7 @@ out/
 dist/
 bin/
 tsconfig.tsbuildinfo
+backend/backend
 
 # Environment files
 .env
