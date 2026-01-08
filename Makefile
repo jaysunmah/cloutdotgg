@@ -1,17 +1,41 @@
-.PHONY: dev db backend frontend install clean generate generate-proto generate-sqlc test
+.PHONY: dev db backend frontend install clean clean-all generate generate-proto generate-sqlc test docker-up docker-up-d docker-down docker-build docker-logs
 
-# Start everything for development
+# Start everything for local development (requires local Go/Node installed)
 dev: db backend frontend
 
-# Start PostgreSQL
-db:
-	docker compose up -d
+# Start all services via Docker Compose (db, backend, frontend)
+docker-up:
+	docker compose up --build
 
-# Run Go backend
+# Start all services in detached mode
+docker-up-d:
+	docker compose up --build -d
+
+# Stop all Docker services
+docker-down:
+	docker compose down
+
+# Build Docker images without starting
+docker-build:
+	docker compose build
+
+# View logs from all services
+docker-logs:
+	docker compose logs -f
+
+# View logs from specific service (usage: make docker-logs-backend)
+docker-logs-%:
+	docker compose logs -f $*
+
+# Start PostgreSQL only (for local development)
+db:
+	docker compose up -d db
+
+# Run Go backend locally
 backend:
 	cd backend && go run .
 
-# Run Next.js frontend
+# Run Next.js frontend locally
 frontend:
 	cd frontend && npm run dev
 
@@ -32,6 +56,10 @@ clean:
 	docker compose down -v
 	rm -rf backend/internal/gen
 	rm -rf frontend/src/lib/gen
+
+# Full cleanup including Docker images
+clean-all: clean
+	docker compose down -v --rmi local
 
 # Generate all code
 generate: generate-proto generate-sqlc
